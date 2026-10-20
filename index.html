@@ -68,12 +68,18 @@ select,input[type=search]{font:inherit;color:var(--text);background:var(--surfac
 .bl{display:flex;flex-direction:column;gap:6px}
 .bl-row{display:grid;grid-template-columns:minmax(90px,170px) 1fr auto;gap:10px;align-items:center;cursor:default;padding:2px 4px;border-radius:6px}
 .bl-row:hover{background:var(--surface-2)}
-@media (max-width:560px){.bl-row{grid-template-columns:96px 1fr}.bl-val{grid-column:1/-1;text-align:left;padding-left:2px}}
+@media (max-width:560px){.bl-row,.rank .bl-row{grid-template-columns:96px 1fr}.bl-val{grid-column:1/-1;text-align:left;padding-left:2px}}
 .bl-name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bl-track{height:14px;position:relative}
 .bl-bar{height:14px;background:var(--bar);border-radius:0 4px 4px 0;min-width:2px}
 .bl-val{font-size:12px;color:var(--text-2);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .bl-val b{color:var(--text);font-weight:600}
+.rank .bl-row{grid-template-columns:minmax(150px,300px) 1fr auto;cursor:pointer}
+.rank .bl-name small{color:var(--muted);margin-left:4px}
+.rank .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px;background:var(--muted)}
+.rank .dot.on{background:var(--good)} .rank .dot.nd{background:var(--warn)}
+.more{margin-top:8px}
+@media (max-width:560px){.rank .bl-row{grid-template-columns:1fr;gap:3px;padding:6px 4px}.rank .bl-val{grid-column:auto;text-align:left}}
 /* tables */
 .tbl-wrap{overflow:auto;max-height:640px;border:1px solid var(--border);border-radius:10px}
 table{border-collapse:collapse;width:100%;font-size:13px}
@@ -144,6 +150,13 @@ a{color:var(--accent)}
   <section class="kpis" id="kpis"></section>
 
   <section class="grid">
+    <div class="card full">
+      <h2>廣告花費排行</h2>
+      <div class="desc">每支廣告一條，依花費排序｜<span class="dot on" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--good)"></span> 投放中　<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn)"></span> 未投遞　<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted)"></span> 已關閉｜點一下跳到明細</div>
+      <div class="bl rank" id="by-ad"></div>
+      <button class="btn more" id="btn-more"></button>
+    </div>
+
     <div class="card full">
       <h2>重點發現與建議</h2>
       <div class="desc">依目前篩選條件自動判讀，數字變動時會跟著更新</div>
@@ -577,9 +590,31 @@ function renderDQ(){
   $('#dq').innerHTML=out.join('');
 }
 
+let SHOW_ALL=false;
+function renderRank(list){
+  const total=sum(list,a=>a.spend), ads=list.slice().sort((a,b)=>b.spend-a.spend);
+  const LIMIT=15, shown=SHOW_ALL?ads:ads.slice(0,LIMIT), max=Math.max(1,...ads.map(a=>a.spend));
+  const el=$('#by-ad');
+  el.innerHTML=shown.map((a,i)=>{
+    const dot=a.statusRaw==='active'?'on':a.statusRaw==='not_delivering'?'nd':'';
+    const res=a.resultType?`${a.resultType} ${fmt(a.results)}｜${money(a.cpr)}／次`:'無成果';
+    return `<div class="bl-row" data-i="${i}">
+      <div class="bl-name" title="${esc(a.name)}｜${esc(a.adset)}"><span class="dot ${dot}"></span>${i+1}. ${esc(a.name)}<small>${esc(a.branch)}｜${esc(a.audS)}</small></div>
+      <div class="bl-track"><div class="bl-bar" style="width:${(a.spend/max*100).toFixed(1)}%"></div></div>
+      <div class="bl-val"><b>${money(a.spend)}</b>　${pct(a.spend/total)}｜${res}</div></div>`;
+  }).join('')||'<div class="empty">無資料</div>';
+  el.querySelectorAll('.bl-row').forEach(r=>{
+    const a=shown[+r.dataset.i];
+    tipOn(r,()=>`<b>${esc(a.name)}</b><br>${esc(a.adset)}<br>狀態 ${esc(a.status)}｜療程 ${esc(a.treat)}<br>花費 ${money(a.spend)}（${pct(a.spend/total)}）<br>${a.resultType?esc(a.resultType)+' '+fmt(a.results)+'｜每次 '+money(a.cpr):'無成果'}<br>曝光 ${fmt(a.impr)}｜頻率 ${fmt1(a.freq)}｜CPM ${money(a.cpm)}`);
+    r.addEventListener('click',()=>{ $('#q').value=a.name; renderDetail(filtered()); $('#detail').scrollIntoView({behavior:'smooth',block:'center'}); });
+  });
+  const b=$('#btn-more'); b.style.display=ads.length>LIMIT?'':'none';
+  b.textContent=SHOW_ALL?'只看前 15 名':`顯示全部 ${ads.length} 支`;
+}
 function render(){
   const list=filtered(), total=sum(list,a=>a.spend);
   renderKPIs(list);
+  renderRank(list);
   barList($('#by-treat'),group(list,'treat'),total,{onClick:g=>setFilter('f-treat',g.k)});
   barList($('#by-branch'),group(list,'branch'),total,{onClick:g=>setFilter('f-branch',g.k)});
   barList($('#by-goal'),group(list,a=>a.goal+(a.format?'-'+a.format:'')),total,{color:'var(--bar-2)'});
@@ -630,6 +665,7 @@ async function loadLocal(files){
 FILTERS.forEach(([id])=>$('#'+id).addEventListener('change',render));
 $('#f-spent').addEventListener('change',render);
 $('#q').addEventListener('input',()=>renderDetail(filtered()));
+$('#btn-more').addEventListener('click',()=>{ SHOW_ALL=!SHOW_ALL; renderRank(filtered()); });
 $('#btn-reset').addEventListener('click',()=>{ FILTERS.forEach(([id])=>$('#'+id).value=''); $('#f-spent').checked=true; $('#q').value=''; render(); });
 $('#btn-local').addEventListener('click',()=>$('#file').click());
 $('#file').addEventListener('change',e=>loadLocal([...e.target.files]));
