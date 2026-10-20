@@ -79,6 +79,7 @@ select,input[type=search]{font:inherit;color:var(--text);background:var(--surfac
 .rank .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px;background:var(--muted)}
 .rank .dot.on{background:var(--good)} .rank .dot.nd{background:var(--warn)}
 .more{margin-top:8px}
+.lg-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:1px}
 @media (max-width:560px){.rank .bl-row{grid-template-columns:1fr;gap:3px;padding:6px 4px}.rank .bl-val{grid-column:auto;text-align:left}}
 /* tables */
 .tbl-wrap{overflow:auto;max-height:640px;border:1px solid var(--border);border-radius:10px}
@@ -152,7 +153,18 @@ a{color:var(--accent)}
   <section class="grid">
     <div class="card full">
       <h2>廣告花費排行</h2>
-      <div class="desc">每支廣告一條，依花費排序｜<span class="dot on" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--good)"></span> 投放中　<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn)"></span> 未投遞　<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted)"></span> 已關閉｜點一下跳到明細</div>
+      <div class="desc" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <span>每支廣告一條，依花費排序｜點一下跳到明細</span>
+        <label style="font-size:12px;color:var(--text-2);display:flex;gap:6px;align-items:center">狀態
+          <select id="rank-status">
+            <option value="">全部</option>
+            <option value="active">投放中</option>
+            <option value="not_delivering">未投遞</option>
+            <option value="closed">已關閉</option>
+          </select>
+        </label>
+        <span><span class="lg-dot" style="background:var(--good)"></span>投放中　<span class="lg-dot" style="background:var(--warn)"></span>未投遞　<span class="lg-dot" style="background:var(--muted)"></span>已關閉</span>
+      </div>
       <div class="bl rank" id="by-ad"></div>
       <button class="btn more" id="btn-more"></button>
     </div>
@@ -592,12 +604,14 @@ function renderDQ(){
 
 let SHOW_ALL=false;
 function renderRank(list){
-  const total=sum(list,a=>a.spend), ads=list.slice().sort((a,b)=>b.spend-a.spend);
+  const total=sum(list,a=>a.spend), rs=$('#rank-status').value;
+  const ads=list.filter(a=>!rs||(rs==='closed'?(a.statusRaw!=='active'&&a.statusRaw!=='not_delivering'):a.statusRaw===rs)).sort((a,b)=>b.spend-a.spend);
   const LIMIT=15, shown=SHOW_ALL?ads:ads.slice(0,LIMIT), max=Math.max(1,...ads.map(a=>a.spend));
   const el=$('#by-ad');
   el.innerHTML=shown.map((a,i)=>{
     const dot=a.statusRaw==='active'?'on':a.statusRaw==='not_delivering'?'nd':'';
-    const res=a.resultType?`${a.resultType} ${fmt(a.results)}｜${money(a.cpr)}／次`:'無成果';
+    const cp=a.cpr!=null&&a.cpr<1?'NT$'+a.cpr.toFixed(2):money(a.cpr);
+    const res=a.resultType?`${a.resultType} ${fmt(a.results)}｜${cp}／次`:'無成果';
     return `<div class="bl-row" data-i="${i}">
       <div class="bl-name" title="${esc(a.name)}｜${esc(a.adset)}"><span class="dot ${dot}"></span>${i+1}. ${esc(a.name)}<small>${esc(a.branch)}｜${esc(a.audS)}</small></div>
       <div class="bl-track"><div class="bl-bar" style="width:${(a.spend/max*100).toFixed(1)}%"></div></div>
@@ -610,6 +624,7 @@ function renderRank(list){
   });
   const b=$('#btn-more'); b.style.display=ads.length>LIMIT?'':'none';
   b.textContent=SHOW_ALL?'只看前 15 名':`顯示全部 ${ads.length} 支`;
+  if(!ads.length) el.innerHTML='<div class="empty">此狀態沒有廣告</div>';
 }
 function render(){
   const list=filtered(), total=sum(list,a=>a.spend);
@@ -665,8 +680,9 @@ async function loadLocal(files){
 FILTERS.forEach(([id])=>$('#'+id).addEventListener('change',render));
 $('#f-spent').addEventListener('change',render);
 $('#q').addEventListener('input',()=>renderDetail(filtered()));
+$('#rank-status').addEventListener('change',()=>renderRank(filtered()));
 $('#btn-more').addEventListener('click',()=>{ SHOW_ALL=!SHOW_ALL; renderRank(filtered()); });
-$('#btn-reset').addEventListener('click',()=>{ FILTERS.forEach(([id])=>$('#'+id).value=''); $('#f-spent').checked=true; $('#q').value=''; render(); });
+$('#btn-reset').addEventListener('click',()=>{ FILTERS.forEach(([id])=>$('#'+id).value=''); $('#f-spent').checked=true; $('#q').value=''; $('#rank-status').value=''; render(); });
 $('#btn-local').addEventListener('click',()=>$('#file').click());
 $('#file').addEventListener('change',e=>loadLocal([...e.target.files]));
 $('#btn-theme').addEventListener('click',()=>{
