@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>廣告成效儀表板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f4f4f1; --surface:#fcfcfb; --surface-2:#f0efec; --border:#e2e1dc;
+  --text:#0b0b0b; --text-2:#52514e; --muted:#7c7b76;
+  --accent:#2a78d6; --accent-soft:#cde2fb; --bar:#2a78d6; --bar-2:#eb6834;
+  --good:#0f7b3f; --warn:#a86400; --bad:#c62828;
+  --good-bg:#e6f4ea; --warn-bg:#fff4dc; --bad-bg:#fde8e8;
+  --seq-1:#cde2fb; --seq-2:#9ec5f4; --seq-3:#6da7ec; --seq-4:#3987e5; --seq-5:#1c5cab;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#121211; --surface:#1a1a19; --surface-2:#232321; --border:#33332f;
+    --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8e86;
+    --accent:#3987e5; --accent-soft:#184f95; --bar:#3987e5; --bar-2:#d95926;
+    --good:#5cc98a; --warn:#f0b54a; --bad:#f07a7a;
+    --good-bg:#16301f; --warn-bg:#352a12; --bad-bg:#3a1a1a;
+    --seq-1:#184f95; --seq-2:#1c5cab; --seq-3:#256abf; --seq-4:#3987e5; --seq-5:#6da7ec;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#121211; --surface:#1a1a19; --surface-2:#232321; --border:#33332f;
+  --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8e86;
+  --accent:#3987e5; --accent-soft:#184f95; --bar:#3987e5; --bar-2:#d95926;
+  --good:#5cc98a; --warn:#f0b54a; --bad:#f07a7a;
+  --good-bg:#16301f; --warn-bg:#352a12; --bad-bg:#3a1a1a;
+  --seq-1:#184f95; --seq-2:#1c5cab; --seq-3:#256abf; --seq-4:#3987e5; --seq-5:#6da7ec;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;font-size:14px;line-height:1.55}
+.wrap{max-width:1280px;margin:0 auto;padding:20px 16px 60px}
+header.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
+h1{font-size:22px;margin:0;font-weight:700;letter-spacing:.02em}
+.sub{color:var(--text-2);font-size:13px}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:14px;position:sticky;top:0;z-index:5}
+.filters label{font-size:12px;color:var(--text-2);display:flex;gap:6px;align-items:center}
+select,input[type=search]{font:inherit;color:var(--text);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;max-width:200px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.kpi .l{font-size:12px;color:var(--text-2)}
+.kpi .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi .n{font-size:12px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;min-width:0}
+.card h2{font-size:15px;margin:0 0 2px;font-weight:700}
+.card .desc{font-size:12px;color:var(--muted);margin-bottom:10px}
+.full{grid-column:1/-1}
+/* bar list */
+.bl{display:flex;flex-direction:column;gap:6px}
+.bl-row{display:grid;grid-template-columns:minmax(90px,170px) 1fr auto;gap:10px;align-items:center;cursor:default;padding:2px 4px;border-radius:6px}
+.bl-row:hover{background:var(--surface-2)}
+@media (max-width:560px){.bl-row{grid-template-columns:96px 1fr}.bl-val{grid-column:1/-1;text-align:left;padding-left:2px}}
+.bl-name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bl-track{height:14px;position:relative}
+.bl-bar{height:14px;background:var(--bar);border-radius:0 4px 4px 0;min-width:2px}
+.bl-val{font-size:12px;color:var(--text-2);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bl-val b{color:var(--text);font-weight:600}
+/* tables */
+.tbl-wrap{overflow:auto;max-height:640px;border:1px solid var(--border);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 9px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--surface-2);font-weight:600;color:var(--text-2);cursor:pointer;user-select:none;z-index:1}
+th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--surface-2)}
+td.wr{white-space:normal;min-width:200px;max-width:320px}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--border);color:var(--text-2)}
+.pill.on{color:var(--good);background:var(--good-bg);border-color:transparent}
+.pill.off{color:var(--muted)}
+.pill.nd{color:var(--warn);background:var(--warn-bg);border-color:transparent}
+.rk{font-size:12px}
+.rk.bad{color:var(--bad)} .rk.ok{color:var(--text-2)} .rk.good{color:var(--good)}
+/* insights */
+.ins{display:flex;flex-direction:column;gap:8px}
+.in{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:10px 12px;border-radius:10px;background:var(--surface-2)}
+.in .ic{font-weight:700;text-align:center}
+.in.bad .ic{color:var(--bad)} .in.warn .ic{color:var(--warn)} .in.info .ic{color:var(--accent)} .in.good .ic{color:var(--good)}
+.in .t{font-weight:600}
+.in .d{color:var(--text-2);font-size:13px}
+/* matrix */
+.mx td.cell{text-align:center;font-variant-numeric:tabular-nums;border-left:1px solid var(--border)}
+.mx td.cell small{display:block;color:var(--text-2);font-size:11px}
+.mx td.cell.c1{background:var(--seq-1)} .mx td.cell.c2{background:var(--seq-2)} .mx td.cell.c3{background:var(--seq-3);color:#fff} .mx td.cell.c4{background:var(--seq-4);color:#fff} .mx td.cell.c5{background:var(--seq-5);color:#fff}
+.mx td.cell.c3 small,.mx td.cell.c4 small,.mx td.cell.c5 small{color:rgba(255,255,255,.85)}
+/* funnel */
+.fn{display:flex;flex-direction:column;gap:6px}
+.empty{padding:18px;border:1px dashed var(--border);border-radius:10px;color:var(--text-2);font-size:13px}
+.drop{position:fixed;inset:0;background:rgba(42,120,214,.12);border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;font-size:20px;z-index:50;color:var(--accent);font-weight:700}
+.drop.show{display:flex}
+#tip{position:fixed;pointer-events:none;background:var(--text);color:var(--surface);padding:6px 9px;border-radius:6px;font-size:12px;z-index:60;display:none;max-width:320px;line-height:1.5}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--text-2);margin-bottom:8px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.status-msg{padding:14px;border-radius:10px;background:var(--warn-bg);color:var(--text);margin-bottom:14px;display:none}
+.foot{color:var(--muted);font-size:12px;margin-top:20px}
+svg text{fill:var(--text-2);font-size:11px}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Meta 廣告成效儀表板</h1>
+      <div class="sub" id="meta-info">讀取資料中…</div>
+    </div>
+    <div class="toolbar">
+      <button class="btn" id="btn-local" title="選擇本機檔案，只在瀏覽器內預覽，不會上傳">開啟本機檔案</button>
+      <button class="btn" id="btn-csv">匯出目前明細 CSV</button>
+      <button class="btn" id="btn-theme" aria-label="切換深淺色">深／淺色</button>
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple hidden>
+    </div>
+  </header>
+
+  <div class="status-msg" id="status"></div>
+
+  <div class="filters" id="filters">
+    <label>分店 <select id="f-branch"></select></label>
+    <label>目標 <select id="f-goal"></select></label>
+    <label>療程 <select id="f-treat"></select></label>
+    <label>受眾 <select id="f-aud"></select></label>
+    <label>投遞狀態 <select id="f-status"></select></label>
+    <label><input type="checkbox" id="f-spent" checked> 只看有花費</label>
+    <button class="btn" id="btn-reset">重設</button>
+  </div>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="grid">
+    <div class="card full">
+      <h2>重點發現與建議</h2>
+      <div class="desc">依目前篩選條件自動判讀，數字變動時會跟著更新</div>
+      <div class="ins" id="insights"></div>
+    </div>
+
+    <div class="card">
+      <h2>花費分布：療程</h2>
+      <div class="desc">長條＝花費；右側＝占比｜私訊數｜每私訊成本</div>
+      <div class="bl" id="by-treat"></div>
+    </div>
+    <div class="card">
+      <h2>花費分布：分店 × 目標</h2>
+      <div class="desc">廣告組合命名「目標｜分店｜受眾」自動拆解</div>
+      <div class="bl" id="by-branch"></div>
+      <div style="height:14px"></div>
+      <div class="bl" id="by-goal"></div>
+    </div>
+
+    <div class="card">
+      <h2>花費分布：受眾（廣告組合）</h2>
+      <div class="desc">同一療程放在不同受眾，哪邊比較便宜？見右側矩陣</div>
+      <div class="bl" id="by-aud"></div>
+    </div>
+    <div class="card">
+      <h2>每私訊成本：療程 × 受眾</h2>
+      <div class="desc">只計「私訊對話」成果的廣告；顏色越深＝越貴。格內小字＝花費／私訊數</div>
+      <div class="tbl-wrap" style="max-height:none" id="matrix"></div>
+    </div>
+
+    <div class="card full" id="trend-card" style="display:none">
+      <h2>每日花費趨勢</h2>
+      <div class="desc">Meta 匯出時選「細分 → 依時間 → 天」才會有</div>
+      <div id="trend"></div>
+    </div>
+
+    <div class="card full">
+      <h2>漏斗：花費 → 私訊 → 到診 → 成交</h2>
+      <div class="desc">私訊之後的數字來自 data/pitcher_input.xlsx「每週成效回報」，依療程對齊廣告花費</div>
+      <div id="funnel"></div>
+    </div>
+
+    <div class="card full">
+      <h2>廣告明細</h2>
+      <div class="desc" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span>點欄位標題排序｜排名：<span class="rk good">▲高於平均</span>　<span class="rk ok">●平均</span>　<span class="rk bad">▼低於平均</span></span>
+        <input type="search" id="q" placeholder="搜尋廣告名稱／組合／備註">
+        <span id="row-count"></span>
+      </div>
+      <div class="tbl-wrap" id="detail"></div>
+    </div>
+
+    <div class="card full">
+      <h2>資料品質檢查</h2>
+      <div class="desc">影響分析準確度的地方，建議在 Meta 後台或填寫表修正</div>
+      <div class="ins" id="dq"></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    資料來源：<code>data/meta_ads.xlsx</code>（或 <code>data/meta_ads.csv</code>）＋ <code>data/pitcher_input.xlsx</code>。
+    「開啟本機檔案」只在你的瀏覽器內讀取，不會上傳任何資料。
+  </div>
+</div>
+<div class="drop" id="drop">放開以預覽檔案（不會上傳）</div>
+<div id="tip"></div>
+
+<script>
+/* ================== 設定 ================== */
+const CONFIG = {
+  metaFiles: ['data/meta_ads.xlsx', 'data/meta_ads.csv'],
+  pitcherFile: 'data/pitcher_input.xlsx',
+  minSpendForAlert: 300,          // 花費超過此金額才列入警示
+  defaultRules: [                 // 填寫表沒有「療程對照」時使用
+    ['bella','水光 Bella Pro'],['水光','水光 Bella Pro'],['電音波','電音波'],['無雙','無雙電波'],
+    ['鼻/埋線','鼻部埋線'],['埋線','臉部埋線'],['唇','精雕唇'],['微針','微針筆'],['內內','內內'],['test','測試']
+  ],
+  statusMap: {active:'投放中', inactive:'已關閉', not_delivering:'未投遞', paused:'暫停', campaign_paused:'行銷活動暫停', adset_paused:'組合暫停'},
+  resultMap: {
+    'actions:onsite_conversion.messaging_conversation_started_7d':'私訊對話',
+    'actions:omni_landing_page_view':'到達頁瀏覽',
+    'actions:link_click':'連結點擊',
+    'reach':'觸及',
+    'actions:lead':'名單',
+  },
+  msgResult: '私訊對話',
+};
+
+/* ================== 工具 ================== */
+const $ = s => document.querySelector(s);
+const fmt = n => (n==null||isNaN(n)) ? '–' : Math.round(n).toLocaleString('zh-TW');
+const fmt1 = n => (n==null||isNaN(n)||!isFinite(n)) ? '–' : n.toLocaleString('zh-TW',{maximumFractionDigits:1});
+const money = n => (n==null||isNaN(n)||!isFinite(n)) ? '–' : 'NT$' + fmt(n);
+const pct = n => (n==null||isNaN(n)||!isFinite(n)) ? '–' : (n*100).toFixed(1)+'%';
+const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num = v => { if(v==null||v==='') return 0; if(typeof v==='number') return v; const x=parseFloat(String(v).replace(/[,\s]/g,'')); return isNaN(x)?0:x; };
+const sum = (a,f) => a.reduce((s,x)=>s+f(x),0);
+function ymd(v){
+  if(v==null||v==='') return '';
+  if(v instanceof Date) return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+  if(typeof v==='number'){ const d=XLSX.SSF.parse_date_code(v); return d?`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`:String(v); }
+  const s=String(v).trim().replace(/\//g,'-'); const m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  return m?`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`:s;
+}
+function pick(row, ...names){
+  for(const n of names){ if(row[n]!==undefined) return row[n]; }
+  const keys=Object.keys(row);
+  for(const n of names){ const k=keys.find(k=>k.startsWith(n)); if(k) return row[k]; }
+  return undefined;
+}
+async function readWorkbook(buf, name){
+  if(/\.csv$/i.test(name)){
+    let text=new TextDecoder('utf-8').decode(buf);
+    if(text.includes('�')) text=new TextDecoder('big5').decode(buf);
+    return XLSX.read(text.replace(/^﻿/,''),{type:'string',raw:false});
+  }
+  return XLSX.read(buf,{type:'array',cellDates:true});
+}
+async function fetchBuf(path){
+  try{ const r=await fetch(path+'?t='+Date.now(),{cache:'no-store'}); if(!r.ok) return null; return await r.arrayBuffer(); }catch(e){ return null; }
+}
+
+/* ================== 解析 ================== */
+function parseAdset(name){
+  const raw=String(name||'').trim();
+  const parts=raw.split(/[｜|]/).map(s=>s.trim()).filter(Boolean);
+  if(parts.length<2) return {goal:'未依命名規則', format:'', branch:'未標示', audience:raw||'未標示', ok:false};
+  const [g,...rest]=parts;
+  const [goal,format]=g.split('-');
+  const branch=rest[0]||'未標示';
+  const audience=rest.slice(1).join('｜')||'未標示';
+  return {goal:goal.trim(), format:(format||'').trim(), branch, audience, ok:true};
+}
+function audShort(a){ const p=a.split('｜'); return p[p.length-1]; }
+function classify(name, rules, override){
+  if(override) return override;
+  const n=String(name||'').toLowerCase();
+  for(const [k,v] of rules){
+    const ks=String(k).toLowerCase().split('/').map(s=>s.trim()).filter(Boolean);
+    if(ks.length && ks.every(x=>n.includes(x))) return v;
+  }
+  return '未分類';
+}
+function rankInfo(s){
+  s=String(s||'').trim();
+  if(!s||s==='-') return {cls:'', txt:'–', bad:false, level:0};
+  if(s.startsWith('高於')) return {cls:'good', txt:'▲', bad:false, level:1, full:s};
+  if(s.startsWith('平均')) return {cls:'ok', txt:'●', bad:false, level:0, full:s};
+  const m=s.match(/倒數\s*(\d+)%/); const p=m?m[1]+'%':'';
+  return {cls:'bad', txt:'▼'+(p?p:''), bad:true, level:m?(+m[1]<=10?3:+m[1]<=20?2:1):1, full:s};
+}
+
+function parseMeta(wb){
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:true});
+  return rows.filter(r=>pick(r,'廣告名稱')!=='' && pick(r,'廣告名稱')!=null).map((r,i)=>{
+    const adset=String(pick(r,'廣告組合名稱')||'').trim();
+    const p=parseAdset(adset);
+    const metric=String(pick(r,'成果指標')||'').trim();
+    const resultType=metric?(CONFIG.resultMap[metric]||metric.replace(/^actions:/,'')):'';
+    const statusRaw=String(pick(r,'廣告投遞')||'').trim();
+    return {
+      _i:i,
+      start:ymd(pick(r,'分析報告開始','報告開始')), end:ymd(pick(r,'分析報告結束','報告結束')),
+      day:ymd(pick(r,'天','日期')),
+      id:String(pick(r,'廣告編號','廣告 ID')||'').trim(),
+      name:String(pick(r,'廣告名稱')||'').trim(),
+      adset, ...p,
+      statusRaw, status:CONFIG.statusMap[statusRaw]||statusRaw||'–',
+      spend:num(pick(r,'花費金額')), impr:num(pick(r,'曝光次數')), reach:num(pick(r,'觸及人數')),
+      results:metric?num(pick(r,'成果')):0, resultType,
+      clicks:num(pick(r,'連結點擊次數','連結點擊')),
+      budget:num(pick(r,'廣告組合預算')), budgetType:String(pick(r,'廣告組合預算類型')||''),
+      endTime:String(pick(r,'結束時間')||''),
+      lastEdit:String(pick(r,'上次重大編輯')||''),
+      rkQ:rankInfo(pick(r,'品質排名')), rkE:rankInfo(pick(r,'參與互動率排名')), rkC:rankInfo(pick(r,'轉換率排名')),
+    };
+  });
+}
+function sheetRows(wb, name, headerRow=3){
+  const ws=wb.Sheets[name]; if(!ws) return [];
+  return XLSX.utils.sheet_to_json(ws,{defval:'',raw:true,range:headerRow-1})
+    .filter(r=>Object.values(r).some(v=>v!==''&&v!=null));
+}
+function parsePitcher(wb){
+  const rules=sheetRows(wb,'療程對照').map(r=>[String(pick(r,'關鍵字')||'').trim(), String(pick(r,'療程')||'').trim()]).filter(r=>r[0]&&r[1]);
+  const supp={};
+  sheetRows(wb,'廣告補充').forEach(r=>{
+    const o={
+      id:String(pick(r,'廣告編號')||'').trim(), treat:String(pick(r,'療程')||'').trim(),
+      creative:String(pick(r,'素材類型')||''), stage:String(pick(r,'目前階段')||''), owner:String(pick(r,'投手')||''),
+      launch:ymd(pick(r,'上線日')), link:String(pick(r,'素材連結')||''), note:String(pick(r,'卡關')||''),
+    };
+    const k=String(pick(r,'廣告組合名稱')||'').trim()+'§'+String(pick(r,'廣告名稱')||'').trim();
+    if(o.id) supp['id§'+o.id]=o;
+    supp[k]=o;
+  });
+  const weekly=sheetRows(wb,'每週成效回報').map(r=>({
+    week:ymd(pick(r,'週起日')), branch:String(pick(r,'分店')||'').trim(), treat:String(pick(r,'療程')||'').trim(),
+    leads:num(pick(r,'有效名單')), booked:num(pick(r,'預約')), visits:num(pick(r,'到診')),
+    deals:num(pick(r,'成交數')), revenue:num(pick(r,'成交金額')),
+  })).filter(r=>r.week||r.treat);
+  return {rules:rules.length?rules:null, supp, weekly};
+}
+
+/* ================== 狀態 ================== */
+let ADS=[], PITCHER={rules:null,supp:{},weekly:[]}, SOURCE='', SORT={key:'spend',dir:-1};
+
+function enrich(){
+  const rules=PITCHER.rules||CONFIG.defaultRules;
+  ADS.forEach(a=>{
+    const s=(a.id&&PITCHER.supp['id§'+a.id])||PITCHER.supp[a.adset+'§'+a.name]||null;
+    a.s=s||{};
+    a.treat=classify(a.name, rules, s&&s.treat);
+    a.audS=a.ok?audShort(a.audience):a.audience;
+    a.cpm=a.impr?a.spend/a.impr*1000:null;
+    a.freq=a.reach?a.impr/a.reach:null;
+    a.cpr=a.results?a.spend/a.results:null;
+  });
+}
+
+/* ================== 篩選 ================== */
+const FILTERS=[['f-branch','branch'],['f-goal','goal'],['f-treat','treat'],['f-aud','audS'],['f-status','status']];
+function buildFilters(){
+  FILTERS.forEach(([id,key])=>{
+    const el=$('#'+id), cur=el.value;
+    const vals=[...new Set(ADS.map(a=>a[key]))].sort((a,b)=>String(a).localeCompare(String(b),'zh-Hant'));
+    el.innerHTML='<option value="">全部</option>'+vals.map(v=>`<option${v===cur?' selected':''}>${esc(v)}</option>`).join('');
+  });
+}
+function filtered(){
+  const f={}; FILTERS.forEach(([id,key])=>{ const v=$('#'+id).value; if(v) f[key]=v; });
+  const spent=$('#f-spent').checked;
+  return ADS.filter(a=>Object.entries(f).every(([k,v])=>a[k]===v) && (!spent||a.spend>0));
+}
+
+/* ================== 繪製 ================== */
+function group(list,key){
+  const m=new Map();
+  list.forEach(a=>{ const k=typeof key==='function'?key(a):a[key]; if(!m.has(k)) m.set(k,[]); m.get(k).push(a); });
+  return [...m.entries()].map(([k,arr])=>{
+    const msg=arr.filter(a=>a.resultType===CONFIG.msgResult);
+    const msgSpend=sum(msg,a=>a.spend), msgN=sum(msg,a=>a.results);
+    return {k,arr,n:arr.length,spend:sum(arr,a=>a.spend),impr:sum(arr,a=>a.impr),msgSpend,msgN,cpm:0,cpa:msgN?msgSpend/msgN:null};
+  }).sort((a,b)=>b.spend-a.spend);
+}
+function barList(el,groups,total,{color='var(--bar)',onClick}={}){
+  const max=Math.max(1,...groups.map(g=>g.spend));
+  el.innerHTML=groups.map((g,i)=>`
+    <div class="bl-row" data-i="${i}">
+      <div class="bl-name" title="${esc(g.k)}">${esc(g.k)}</div>
+      <div class="bl-track"><div class="bl-bar" style="width:${(g.spend/max*100).toFixed(1)}%;background:${color}"></div></div>
+      <div class="bl-val"><b>${money(g.spend)}</b>　${pct(g.spend/total)}｜私訊 ${fmt(g.msgN)}｜${g.cpa?money(g.cpa):'–'}</div>
+    </div>`).join('') || '<div class="empty">無資料</div>';
+  el.querySelectorAll('.bl-row').forEach(r=>{
+    const g=groups[+r.dataset.i];
+    tipOn(r,()=>`<b>${esc(g.k)}</b><br>花費 ${money(g.spend)}（${pct(g.spend/total)}）<br>廣告數 ${g.n}｜曝光 ${fmt(g.impr)}<br>CPM ${money(g.impr?g.spend/g.impr*1000:null)}<br>私訊 ${fmt(g.msgN)}｜每私訊 ${money(g.cpa)}`);
+    if(onClick){ r.style.cursor='pointer'; r.addEventListener('click',()=>onClick(g)); }
+  });
+}
+function setFilter(id,val){ const el=$('#'+id); el.value=(el.value===val?'':val); render(); }
+
+function renderKPIs(list){
+  const spend=sum(list,a=>a.spend), impr=sum(list,a=>a.impr), reach=sum(list,a=>a.reach);
+  const msg=list.filter(a=>a.resultType===CONFIG.msgResult);
+  const msgN=sum(msg,a=>a.results), msgSpend=sum(msg,a=>a.spend);
+  const active=list.filter(a=>a.statusRaw==='active');
+  const spentAds=list.filter(a=>a.spend>0).length;
+  const k=[
+    ['總花費',money(spend),`${list.length} 支廣告（有花費 ${spentAds}）`],
+    ['私訊對話數',fmt(msgN),`來自 ${msg.length} 支私訊型廣告`],
+    ['每私訊成本',money(msgN?msgSpend/msgN:null),`私訊型廣告花費 ${money(msgSpend)}`],
+    ['曝光次數',fmt(impr),`CPM ${money(impr?spend/impr*1000:null)}`],
+    ['觸及人數（加總）',fmt(reach),`平均頻率 ${fmt1(reach?impr/reach:null)}｜各廣告間有重複`],
+    ['目前投放中',fmt(active.length)+' 支',`花費占比 ${pct(spend?sum(active,a=>a.spend)/spend:null)}`],
+  ];
+  $('#kpis').innerHTML=k.map(([l,v,n])=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="n">${n}</div></div>`).join('');
+}
+
+function renderMatrix(list){
+  const msg=list.filter(a=>a.resultType===CONFIG.msgResult);
+  const treats=group(msg,'treat').map(g=>g.k), auds=group(msg,'audS').map(g=>g.k);
+  if(!msg.length){ $('#matrix').innerHTML='<div class="empty">目前篩選沒有私訊型廣告</div>'; return; }
+  const cells={}; msg.forEach(a=>{ const k=a.treat+'§'+a.audS; (cells[k]=cells[k]||{s:0,n:0}); cells[k].s+=a.spend; cells[k].n+=a.results; });
+  const cpas=Object.values(cells).filter(c=>c.n).map(c=>c.s/c.n).sort((a,b)=>a-b);
+  const q=p=>cpas[Math.min(cpas.length-1,Math.floor(p*cpas.length))];
+  const cuts=[q(.2),q(.4),q(.6),q(.8)];
+  const lvl=v=>1+cuts.filter(c=>v>c).length;
+  let h='<table class="mx"><thead><tr><th>療程 ＼ 受眾</th>'+auds.map(a=>`<th class="num">${esc(a)}</th>`).join('')+'</tr></thead><tbody>';
+  treats.forEach(t=>{
+    h+=`<tr><td>${esc(t)}</td>`+auds.map(a=>{
+      const c=cells[t+'§'+a]; if(!c) return '<td class="cell" style="color:var(--muted)">·</td>';
+      if(!c.n) return `<td class="cell" title="有花費但 0 私訊"><span style="color:var(--bad)">0 私訊</span><small>${money(c.s)}</small></td>`;
+      const v=c.s/c.n; return `<td class="cell c${lvl(v)}">${money(v)}<small>${money(c.s)}／${fmt(c.n)}</small></td>`;
+    }).join('')+'</tr>';
+  });
+  $('#matrix').innerHTML=h+'</tbody></table>';
+}
+
+function renderTrend(list){
+  const days=[...new Set(list.map(a=>a.day||(a.start===a.end?a.start:'')).filter(Boolean))].sort();
+  if(days.length<2){ $('#trend-card').style.display='none'; return; }
+  $('#trend-card').style.display='';
+  const by=days.map(d=>sum(list.filter(a=>(a.day||a.start)===d),a=>a.spend));
+  const W=Math.max(600,$('#trend').clientWidth||900), H=200, P={l:56,r:12,t:10,b:26};
+  const max=Math.max(...by)*1.1||1, x=i=>P.l+(W-P.l-P.r)*i/(days.length-1), y=v=>P.t+(H-P.t-P.b)*(1-v/max);
+  let s=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="每日花費">`;
+  for(let i=0;i<=4;i++){ const v=max*i/4; s+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--border)"/><text x="${P.l-6}" y="${y(v)+4}" text-anchor="end">${fmt(v)}</text>`; }
+  s+=`<polyline fill="none" stroke="var(--bar)" stroke-width="2" points="${by.map((v,i)=>x(i)+','+y(v)).join(' ')}"/>`;
+  const step=Math.ceil(days.length/8); days.forEach((d,i)=>{ if(i%step===0) s+=`<text x="${x(i)}" y="${H-6}" text-anchor="middle">${d.slice(5)}</text>`; });
+  by.forEach((v,i)=>{ s+=`<circle cx="${x(i)}" cy="${y(v)}" r="9" fill="transparent" data-t="${days[i]}｜${money(v)}"/>`; });
+  $('#trend').innerHTML=s+'</svg>';
+  $('#trend').querySelectorAll('circle').forEach(c=>tipOn(c,()=>c.dataset.t));
+}
+
+function renderFunnel(list){
+  const W=PITCHER.weekly;
+  if(!W.length){
+    $('#funnel').innerHTML=`<div class="empty">尚未有「每週成效回報」資料。請診所／客服在 <code>pitcher_input.xlsx</code> 填寫有效名單、預約、到診、成交後放進 <code>data/</code>，這裡會自動算出<b>每到診成本、每成交成本、ROAS</b>——這才是判斷廣告值不值得的關鍵指標。</div>`;
+    return;
+  }
+  const starts=list.map(a=>a.start).filter(Boolean).sort(), ends=list.map(a=>a.end).filter(Boolean).sort();
+  const from=starts[0]||'', to=ends[ends.length-1]||'9999';
+  const br=$('#f-branch').value, tr=$('#f-treat').value;
+  const wk=W.filter(r=>(!r.week||(r.week>=from&&r.week<=to)) && (!br||r.branch===br) && (!tr||r.treat===tr));
+  const treats=[...new Set([...list.map(a=>a.treat),...wk.map(r=>r.treat)])];
+  const rows=treats.map(t=>{
+    const ads=list.filter(a=>a.treat===t), w=wk.filter(r=>r.treat===t);
+    const spend=sum(ads,a=>a.spend), msg=sum(ads.filter(a=>a.resultType===CONFIG.msgResult),a=>a.results);
+    return {t,spend,msg,has:w.length>0,leads:sum(w,r=>r.leads),booked:sum(w,r=>r.booked),visits:sum(w,r=>r.visits),deals:sum(w,r=>r.deals),rev:sum(w,r=>r.revenue)};
+  }).filter(r=>r.spend||r.visits||r.rev).sort((a,b)=>b.spend-a.spend);
+  const T=rows.reduce((s,r)=>{['spend','msg','leads','booked','visits','deals','rev'].forEach(k=>s[k]=(s[k]||0)+r[k]);return s;},{t:'合計'});
+  const line=r=>`<tr${r.has===false?' style="color:var(--muted)" title="這個療程尚無回報資料"':''}><td>${esc(r.t)}${r.has===false?' <small>（未回報）</small>':''}</td><td class="num">${money(r.spend)}</td><td class="num">${fmt(r.msg)}</td><td class="num">${fmt(r.leads)}</td><td class="num">${fmt(r.booked)}</td><td class="num">${fmt(r.visits)}</td><td class="num">${fmt(r.deals)}</td><td class="num">${money(r.rev)}</td>
+    <td class="num">${pct(r.msg?r.visits/r.msg:null)}</td><td class="num">${money(r.visits?r.spend/r.visits:null)}</td><td class="num">${money(r.deals?r.spend/r.deals:null)}</td><td class="num"><b>${r.spend&&r.has!==false?fmt1(r.rev/r.spend)+'x':'–'}</b></td></tr>`;
+  $('#funnel').innerHTML=`<div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>療程</th><th class="num">花費</th><th class="num">私訊</th><th class="num">有效名單</th><th class="num">預約</th><th class="num">到診</th><th class="num">成交</th><th class="num">成交金額</th><th class="num">私訊→到診</th><th class="num">每到診成本</th><th class="num">每成交成本</th><th class="num">ROAS</th></tr></thead>
+  <tbody>${rows.map(line).join('')}</tbody><tfoot>${line(T).replace('<tr>','<tr style="font-weight:700">')}</tfoot></table></div>
+  <div class="desc" style="margin-top:6px">回報週期：${esc(from)} ～ ${esc(to)} 之間的週次｜ROAS＝成交金額 ÷ 廣告花費</div>`;
+}
+
+const COLS=[
+  ['status','狀態',a=>`<span class="pill ${a.statusRaw==='active'?'on':a.statusRaw==='not_delivering'?'nd':'off'}">${esc(a.status)}</span>`],
+  ['name','廣告名稱',a=>`<b>${esc(a.name)}</b>`],
+  ['treat','療程',a=>esc(a.treat)],
+  ['branch','分店',a=>esc(a.branch)],
+  ['goal','目標',a=>esc(a.goal+(a.format?'-'+a.format:''))],
+  ['audS','受眾',a=>esc(a.audS)],
+  ['spend','花費',a=>money(a.spend),1],
+  ['share','占比',a=>pct(a._share),1],
+  ['results','成果',a=>a.resultType?fmt(a.results):'–',1],
+  ['resultType','成果類型',a=>esc(a.resultType||'–')],
+  ['cpr','每次成果成本',a=>a.resultType?money(a.cpr):'–',1],
+  ['impr','曝光',a=>fmt(a.impr),1],
+  ['reach','觸及',a=>fmt(a.reach),1],
+  ['freq','頻率',a=>fmt1(a.freq),1],
+  ['cpm','CPM',a=>money(a.cpm),1],
+  ['rk','品質/互動/轉換',a=>[a.rkQ,a.rkE,a.rkC].map(r=>`<span class="rk ${r.cls}" title="${esc(r.full||'')}">${r.txt}</span>`).join(' ')],
+  ['budget','組合預算',a=>a.budget?money(a.budget)+'/'+(a.budgetType||''):'–',1],
+  ['endTime','結束',a=>esc(a.endTime)],
+  ['stage','階段(投手)',a=>esc(a.s.stage||'')],
+  ['owner','投手',a=>esc(a.s.owner||'')],
+  ['note','卡關／下一步',a=>(a.s.link?`<a href="${esc(a.s.link)}" target="_blank" rel="noopener">素材</a> `:'')+esc(a.s.note||''),0,'wr'],
+  ['adset','廣告組合',a=>esc(a.adset)],
+];
+function renderDetail(list){
+  const total=sum(list,a=>a.spend); list.forEach(a=>a._share=total?a.spend/total:0);
+  const q=$('#q').value.trim().toLowerCase();
+  let rows=q?list.filter(a=>[a.name,a.adset,a.treat,a.s.note,a.s.owner].join(' ').toLowerCase().includes(q)):list.slice();
+  const k=SORT.key, val=a=>k==='share'?a._share:k==='rk'?(a.rkQ.level+a.rkE.level+a.rkC.level):k in a?a[k]:(a.s[k]||'');
+  rows.sort((a,b)=>{ const x=val(a),y=val(b); return (typeof x==='number'&&typeof y==='number'?x-y:String(x??'').localeCompare(String(y??''),'zh-Hant'))*SORT.dir; });
+  $('#row-count').textContent=`${rows.length} 筆`;
+  $('#detail').innerHTML=`<table><thead><tr>${COLS.map(c=>`<th class="${c[3]?'num':''}" data-k="${c[0]}">${c[1]}${SORT.key===c[0]?(SORT.dir>0?' ↑':' ↓'):''}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(a=>`<tr>${COLS.map(c=>`<td class="${c[3]?'num':''} ${c[4]||''}">${c[2](a)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  $('#detail').querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>{ const k=th.dataset.k; SORT={key:k,dir:SORT.key===k?-SORT.dir:(COLS.find(c=>c[0]===k)[3]?-1:1)}; renderDetail(filtered()); }));
+  window._rows=rows;
+}
+
+function insight(cls,icon,t,d){ return `<div class="in ${cls}"><div class="ic">${icon}</div><div><div class="t">${t}</div><div class="d">${d}</div></div></div>`; }
+function renderInsights(list){
+  const out=[], total=sum(list,a=>a.spend); if(!total){ $('#insights').innerHTML='<div class="empty">無花費資料</div>'; return; }
+  const minS=CONFIG.minSpendForAlert;
+  // 1 集中度
+  const top=list.slice().sort((a,b)=>b.spend-a.spend).slice(0,3), topS=sum(top,a=>a.spend);
+  out.push(insight('info','i',`前 3 支廣告吃掉 ${pct(topS/total)} 預算`, top.map(a=>`${esc(a.name)}（${esc(a.audS)}）${money(a.spend)}`).join('、')+'。預算高度集中時，這幾支的素材疲乏（頻率上升、CPA 變貴）會直接拖垮整體成效，建議每週盯頻率與每私訊成本。'));
+  // 2 受眾比較
+  const msg=list.filter(a=>a.resultType===CONFIG.msgResult && a.spend>0 && a.ok && a.treat!=='測試');
+  const ga=group(msg,'audS').filter(g=>g.msgN>0 && g.msgSpend>=minS*3).sort((a,b)=>a.cpa-b.cpa);
+  if(ga.length>=2){
+    const b=ga[0], w=ga[ga.length-1];
+    out.push(insight(w.cpa/b.cpa>1.3?'warn':'info','⇄',`受眾「${esc(b.k)}」每私訊 ${money(b.cpa)}，「${esc(w.k)}」${money(w.cpa)}（貴 ${pct(w.cpa/b.cpa-1)}）`,
+      ga.map(g=>`${esc(g.k)} ${money(g.cpa)}（${fmt(g.msgN)} 則／${money(g.msgSpend)}）`).join('；')+'。同療程跨受眾的差異請看「療程 × 受眾」矩陣，再決定預算要往哪邊移。'));
+  }
+  // 3 療程 CPA
+  const gt=group(msg,'treat').filter(g=>g.msgSpend>=minS*2 && g.msgN>0).sort((a,b)=>a.cpa-b.cpa);
+  if(gt.length>=2) out.push(insight('info','◆',`每私訊最便宜：${esc(gt[0].k)} ${money(gt[0].cpa)}；最貴：${esc(gt[gt.length-1].k)} ${money(gt[gt.length-1].cpa)}`,
+    '（已排除測試與命名不符的廣告）不同療程客單價不同，私訊成本高不一定不划算——要搭配「每週成效回報」的到診與成交金額才能判斷 ROAS。'));
+  // 4 零成果
+  const zero=list.filter(a=>a.spend>=minS && !a.results);
+  if(zero.length) out.push(insight('bad','!',`${zero.length} 支廣告花費 ≥ ${money(minS)} 但 0 成果，共 ${money(sum(zero,a=>a.spend))}`, zero.map(a=>`${esc(a.name)}（${esc(a.audS)}）${money(a.spend)}`).join('、')));
+  // 5 高成本
+  const cps=msg.filter(a=>a.results).map(a=>a.cpr).sort((a,b)=>a-b), med=cps[Math.floor(cps.length/2)];
+  const hi=msg.filter(a=>a.results && a.spend>=minS && a.cpr>med*2).sort((a,b)=>b.cpr-a.cpr);
+  if(hi.length) out.push(insight('warn','▲',`${hi.length} 支私訊廣告的成本超過中位數 ${money(med)} 的 2 倍`, hi.map(a=>`${esc(a.name)}（${esc(a.audS)}）${money(a.cpr)}／則，花 ${money(a.spend)}`).join('、')+'。若仍在投放，建議關閉或換素材。'));
+  // 6 排名
+  const lowR=list.filter(a=>a.spend>0 && (a.rkQ.level>=2||a.rkE.level>=2||a.rkC.level>=2));
+  if(lowR.length) out.push(insight('warn','▼',`${lowR.length} 支廣告有排名落在倒數 20% 以下，占花費 ${pct(sum(lowR,a=>a.spend)/total)}`,
+    lowR.sort((a,b)=>b.spend-a.spend).slice(0,6).map(a=>`${esc(a.name)}（${esc(a.audS)}）`).join('、')+'。品質排名低＝素材本身吸引力不足；轉換率排名低＝私訊開場／落地頁可能要改。'));
+  // 7 碎片化
+  const tiny=list.filter(a=>a.spend>0 && a.spend<100);
+  if(tiny.length>=3) out.push(insight('info','…',`${tiny.length} 支廣告花費不到 NT$100`, 'Meta 學習期需要足夠的轉換量，預算拆太散會讓每支都學不起來。建議合併或關閉，集中到表現好的組合。'));
+  // 8 投放中的效率
+  const act=list.filter(a=>a.statusRaw==='active' && a.resultType===CONFIG.msgResult && a.results);
+  if(act.length) out.push(insight('good','✓',`目前投放中的私訊廣告 ${act.length} 支，平均每私訊 ${money(sum(act,a=>a.spend)/sum(act,a=>a.results))}`, act.sort((a,b)=>a.cpr-b.cpr).map(a=>`${esc(a.name)}（${esc(a.audS)}）${money(a.cpr)}`).join('、')));
+  $('#insights').innerHTML=out.join('');
+}
+
+function renderDQ(){
+  const out=[];
+  const bad=ADS.filter(a=>!a.ok);
+  if(bad.length) out.push(insight('warn','!',`${bad.length} 支廣告的廣告組合名稱不符「目標-形式｜分店｜受眾」`, [...new Set(bad.map(a=>a.adset))].map(esc).join('、')+`，共花費 ${money(sum(bad,a=>a.spend))}。這些無法歸到分店與受眾，建議改名。`));
+  const keys={}; ADS.forEach(a=>{ const k=a.id||a.adset+'§'+a.name; keys[k]=(keys[k]||0)+1; });
+  const dup=Object.entries(keys).filter(([k,n])=>n>1);
+  if(dup.length && !ADS.some(a=>a.id)) out.push(insight('warn','≡',`${dup.length} 組「廣告組合＋廣告名稱」重複`, '同名廣告無法和投手填寫表一對一對應。建議在 Meta 匯出時加入「廣告編號」欄位（欄位 → 自訂欄位 → 搜尋「廣告編號」），儀表板會自動改用編號對應。'));
+  const unk=ADS.filter(a=>a.treat==='未分類');
+  if(unk.length) out.push(insight('warn','?',`${unk.length} 支廣告無法判斷療程`, unk.map(a=>esc(a.name)).join('、')+'。請到填寫表「療程對照」新增關鍵字，或在「廣告補充」直接指定療程。'));
+  const types=[...new Set(ADS.filter(a=>a.resultType).map(a=>a.resultType))];
+  if(types.length>1) out.push(insight('info','i',`成果類型有 ${types.length} 種：${types.map(esc).join('、')}`, '不同類型的「成果」不能直接相加，所以本儀表板的成本比較只用「私訊對話」。導流、曝光型廣告請看 CPM 與到達頁瀏覽數。'));
+  if(!ADS.some(a=>a.clicks)) out.push(insight('info','+','建議匯出時加入「連結點擊次數」「CTR」欄位', '可以多看一層：素材有沒有吸引點擊（CTR）vs 點進來後有沒有開口（轉換）。'));
+  if(!ADS.some(a=>a.day)) out.push(insight('info','+','建議匯出時選「細分 → 依時間 → 天」', '目前是 30 天加總，看不出趨勢。改成依天細分後，儀表板會自動出現每日花費趨勢圖。'));
+  const supp=ADS.filter(a=>a.s&&Object.keys(a.s).length).length;
+  out.push(insight(supp?'good':'info', supp?'✓':'i', `投手填寫表對應到 ${supp}／${ADS.length} 支廣告`, supp?'未對應到的廣告，請確認填寫表中的廣告組合名稱與廣告名稱是否與後台完全一致。':'尚未放入 data/pitcher_input.xlsx，或名稱對不上。'));
+  $('#dq').innerHTML=out.join('');
+}
+
+function render(){
+  const list=filtered(), total=sum(list,a=>a.spend);
+  renderKPIs(list);
+  barList($('#by-treat'),group(list,'treat'),total,{onClick:g=>setFilter('f-treat',g.k)});
+  barList($('#by-branch'),group(list,'branch'),total,{onClick:g=>setFilter('f-branch',g.k)});
+  barList($('#by-goal'),group(list,a=>a.goal+(a.format?'-'+a.format:'')),total,{color:'var(--bar-2)'});
+  barList($('#by-aud'),group(list,a=>a.branch+'｜'+a.audS),total);
+  renderMatrix(list); renderTrend(list); renderFunnel(list); renderInsights(list); renderDetail(list);
+}
+
+/* ================== tooltip ================== */
+const tip=$('#tip');
+function tipOn(el,fn){
+  el.addEventListener('mousemove',e=>{ tip.innerHTML=fn(); tip.style.display='block'; const x=Math.min(e.clientX+14,innerWidth-tip.offsetWidth-8); tip.style.left=x+'px'; tip.style.top=(e.clientY+14)+'px'; });
+  el.addEventListener('mouseleave',()=>tip.style.display='none');
+}
+
+/* ================== 載入 ================== */
+function showStatus(html){ const s=$('#status'); s.innerHTML=html; s.style.display=html?'block':'none'; }
+function afterLoad(){
+  enrich(); buildFilters(); renderDQ(); render();
+  const s=ADS.map(a=>a.start).filter(Boolean).sort()[0], e=ADS.map(a=>a.end).filter(Boolean).sort().pop();
+  $('#meta-info').textContent=`資料期間 ${s||'?'} ～ ${e||'?'}｜${ADS.length} 支廣告｜來源：${SOURCE}${Object.keys(PITCHER.supp).length||PITCHER.weekly.length?'＋投手填寫表':''}`;
+}
+async function loadRemote(){
+  let found=false;
+  for(const p of CONFIG.metaFiles){
+    const buf=await fetchBuf(p); if(!buf) continue;
+    try{ ADS=parseMeta(await readWorkbook(buf,p)); SOURCE=p; found=true; break; }catch(e){ console.error(e); }
+  }
+  const pb=await fetchBuf(CONFIG.pitcherFile);
+  if(pb){ try{ PITCHER=parsePitcher(await readWorkbook(pb,CONFIG.pitcherFile)); }catch(e){ console.error(e); } }
+  if(!found){
+    $('#meta-info').textContent='尚未讀到資料';
+    showStatus('找不到 <code>data/meta_ads.xlsx</code> 或 <code>data/meta_ads.csv</code>。你可以按右上「開啟本機檔案」或直接把 Meta 匯出檔（和投手填寫表）拖進這個頁面預覽——只在瀏覽器內讀取，不會上傳。');
+    return;
+  }
+  showStatus(''); afterLoad();
+}
+async function loadLocal(files){
+  for(const f of files){
+    const buf=await f.arrayBuffer(); const wb=await readWorkbook(buf,f.name);
+    if(wb.Sheets['每週成效回報']||wb.Sheets['廣告補充']) PITCHER=parsePitcher(wb);
+    else { ADS=parseMeta(wb); SOURCE='本機檔案 '+f.name; }
+  }
+  if(!ADS.length){ showStatus('已讀取投手填寫表，請再加入 Meta 匯出檔。'); return; }
+  showStatus('目前顯示的是<b>本機檔案預覽</b>（未上傳）。重新整理頁面會回到 data/ 資料夾的版本。'); afterLoad();
+}
+
+/* ================== 事件 ================== */
+FILTERS.forEach(([id])=>$('#'+id).addEventListener('change',render));
+$('#f-spent').addEventListener('change',render);
+$('#q').addEventListener('input',()=>renderDetail(filtered()));
+$('#btn-reset').addEventListener('click',()=>{ FILTERS.forEach(([id])=>$('#'+id).value=''); $('#f-spent').checked=true; $('#q').value=''; render(); });
+$('#btn-local').addEventListener('click',()=>$('#file').click());
+$('#file').addEventListener('change',e=>loadLocal([...e.target.files]));
+$('#btn-theme').addEventListener('click',()=>{
+  const r=document.documentElement, dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme=dark?'light':'dark'; try{localStorage.setItem('theme',r.dataset.theme);}catch(e){}
+});
+try{ const t=localStorage.getItem('theme'); if(t) document.documentElement.dataset.theme=t; }catch(e){}
+$('#btn-csv').addEventListener('click',()=>{
+  const rows=window._rows||[]; const head=['狀態','廣告名稱','療程','分店','目標','受眾','花費','成果','成果類型','每次成果成本','曝光','觸及','頻率','CPM','品質排名','互動排名','轉換排名','階段','投手','卡關/下一步','廣告組合'];
+  const data=rows.map(a=>[a.status,a.name,a.treat,a.branch,a.goal+(a.format?'-'+a.format:''),a.audS,a.spend,a.results,a.resultType,a.cpr?Math.round(a.cpr):'',a.impr,a.reach,a.freq?a.freq.toFixed(2):'',a.cpm?Math.round(a.cpm):'',a.rkQ.full||'',a.rkE.full||'',a.rkC.full||'',a.s.stage||'',a.s.owner||'',a.s.note||'',a.adset]);
+  const csv='﻿'+[head,...data].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='廣告明細_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+});
+let dragN=0;
+addEventListener('dragenter',e=>{e.preventDefault();dragN++;$('#drop').classList.add('show');});
+addEventListener('dragleave',e=>{dragN--; if(dragN<=0){$('#drop').classList.remove('show');dragN=0;}});
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{e.preventDefault();dragN=0;$('#drop').classList.remove('show'); loadLocal([...e.dataTransfer.files]);});
+
+loadRemote();
+</script>
+</body>
+</html>
