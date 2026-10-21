@@ -115,13 +115,20 @@ td.wr{white-space:normal;min-width:200px;max-width:320px}
 #tip{position:fixed;pointer-events:none;background:var(--text);color:var(--surface);padding:6px 9px;border-radius:6px;font-size:12px;z-index:60;display:none;max-width:320px;line-height:1.5}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--text-2);margin-bottom:8px;flex-wrap:wrap}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.landing{background:var(--surface);border:2px dashed var(--border);border-radius:14px;padding:40px 20px;text-align:center;margin-bottom:14px}
+.landing h2{margin:0 0 6px;font-size:18px}
+.landing p{color:var(--text-2);margin:4px 0}
+.landing .btn{margin-top:14px;font-size:15px;padding:10px 22px}
+.landing ol{display:inline-block;text-align:left;color:var(--text-2);font-size:13px;margin:16px auto 0;padding-left:20px}
+body.nodata .filters,body.nodata .kpis,body.nodata .grid,body.nodata #btn-csv{display:none}
+body:not(.nodata) .landing{display:none}
 .status-msg{padding:14px;border-radius:10px;background:var(--warn-bg);color:var(--text);margin-bottom:14px;display:none}
 .foot{color:var(--muted);font-size:12px;margin-top:20px}
 svg text{fill:var(--text-2);font-size:11px}
 a{color:var(--accent)}
 </style>
 </head>
-<body>
+<body class="nodata">
 <div class="wrap">
   <header class="top">
     <div>
@@ -129,7 +136,7 @@ a{color:var(--accent)}
       <div class="sub" id="meta-info">讀取資料中…</div>
     </div>
     <div class="toolbar">
-      <button class="btn" id="btn-local" title="選擇本機檔案，只在瀏覽器內預覽，不會上傳">開啟本機檔案</button>
+      <button class="btn" id="btn-local" title="選擇本機檔案，只在瀏覽器內讀取，不會上傳">上傳／更換檔案</button>
       <button class="btn" id="btn-csv">匯出目前明細 CSV</button>
       <button class="btn" id="btn-theme" aria-label="切換深淺色">深／淺色</button>
       <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple hidden>
@@ -137,6 +144,19 @@ a{color:var(--accent)}
   </header>
 
   <div class="status-msg" id="status"></div>
+
+  <div class="landing" id="landing">
+    <h2>上傳 Meta 廣告匯出檔開始分析</h2>
+    <p>把檔案拖進這個頁面，或按下面的按鈕選擇檔案（.csv / .xlsx 皆可）</p>
+    <p>可以同時選 Meta 匯出檔＋投手填寫表 pitcher_input.xlsx（選填）</p>
+    <button class="btn primary" id="btn-landing">選擇檔案</button>
+    <p style="font-size:12px;margin-top:12px">🔒 檔案只在你的瀏覽器內讀取，不會上傳到任何伺服器；關掉或重新整理頁面就會清除</p>
+    <ol>
+      <li>Meta 廣告管理員 → 廣告層級 → 選日期區間</li>
+      <li>報表 → 匯出表格資料 → 下載 CSV</li>
+      <li>拖進這個頁面</li>
+    </ol>
+  </div>
 
   <div class="filters" id="filters">
     <label>分店 <select id="f-branch"></select></label>
@@ -205,8 +225,7 @@ a{color:var(--accent)}
   </section>
 
   <div class="foot">
-    資料來源：<code>data/meta_ads.xlsx</code>（或 <code>data/meta_ads.csv</code>）＋ <code>data/pitcher_input.xlsx</code>。
-    「開啟本機檔案」只在你的瀏覽器內讀取，不會上傳任何資料。
+    檔案只在你的瀏覽器內讀取，不會上傳到任何伺服器；重新整理頁面即清除。
   </div>
 </div>
 <div class="drop" id="drop">放開以預覽檔案（不會上傳）</div>
@@ -632,20 +651,22 @@ async function loadRemote(){
   const pb=await fetchBuf(CONFIG.pitcherFile);
   if(pb){ try{ PITCHER=parsePitcher(await readWorkbook(pb,CONFIG.pitcherFile)); }catch(e){ console.error(e); } }
   if(!found){
-    $('#meta-info').textContent='尚未讀到資料';
-    showStatus('找不到 <code>data/meta_ads.xlsx</code> 或 <code>data/meta_ads.csv</code>。你可以按右上「開啟本機檔案」或直接把 Meta 匯出檔（和投手填寫表）拖進這個頁面預覽——只在瀏覽器內讀取，不會上傳。');
+    $('#meta-info').textContent='尚未載入資料';
+    showStatus('');
     return;
   }
-  showStatus(''); afterLoad();
+  showStatus(''); document.body.classList.remove('nodata'); afterLoad();
 }
 async function loadLocal(files){
+  try{
   for(const f of files){
     const buf=await f.arrayBuffer(); const wb=await readWorkbook(buf,f.name);
     if(wb.Sheets['每週成效回報']||wb.Sheets['廣告補充']) PITCHER=parsePitcher(wb);
     else { ADS=parseMeta(wb); SOURCE='本機檔案 '+f.name; }
   }
   if(!ADS.length){ showStatus('已讀取投手填寫表，請再加入 Meta 匯出檔。'); return; }
-  showStatus('目前顯示的是<b>本機檔案預覽</b>（未上傳）。重新整理頁面會回到 data/ 資料夾的版本。'); afterLoad();
+  showStatus(''); document.body.classList.remove('nodata'); afterLoad();
+  }catch(e){ console.error(e); showStatus('檔案讀取失敗，請確認是 Meta 廣告管理員匯出的 CSV 或 Excel。'); }
 }
 
 /* ================== 事件 ================== */
@@ -656,7 +677,8 @@ $('#rank-status').addEventListener('change',()=>renderRank(filtered()));
 $('#btn-more').addEventListener('click',()=>{ SHOW_ALL=!SHOW_ALL; renderRank(filtered()); });
 $('#btn-reset').addEventListener('click',()=>{ FILTERS.forEach(([id])=>$('#'+id).value=''); $('#f-spent').checked=true; $('#q').value=''; $('#rank-status').value=''; render(); });
 $('#btn-local').addEventListener('click',()=>$('#file').click());
-$('#file').addEventListener('change',e=>loadLocal([...e.target.files]));
+$('#btn-landing').addEventListener('click',()=>$('#file').click());
+$('#file').addEventListener('change',e=>{ loadLocal([...e.target.files]); e.target.value=''; });
 $('#btn-theme').addEventListener('click',()=>{
   const r=document.documentElement, dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
   r.dataset.theme=dark?'light':'dark'; try{localStorage.setItem('theme',r.dataset.theme);}catch(e){}
