@@ -175,30 +175,6 @@ a{color:var(--accent)}
       <div class="ins" id="insights"></div>
     </div>
 
-    <div class="card">
-      <h2>花費分布：療程</h2>
-      <div class="desc">長條＝花費；右側＝占比｜私訊數｜每私訊成本</div>
-      <div class="bl" id="by-treat"></div>
-    </div>
-    <div class="card">
-      <h2>花費分布：分店 × 目標</h2>
-      <div class="desc">廣告組合命名「目標｜分店｜受眾」自動拆解</div>
-      <div class="bl" id="by-branch"></div>
-      <div style="height:14px"></div>
-      <div class="bl" id="by-goal"></div>
-    </div>
-
-    <div class="card">
-      <h2>花費分布：受眾（廣告組合）</h2>
-      <div class="desc">同一療程放在不同受眾，哪邊比較便宜？見右側矩陣</div>
-      <div class="bl" id="by-aud"></div>
-    </div>
-    <div class="card">
-      <h2>每私訊成本：療程 × 受眾</h2>
-      <div class="desc">只計「私訊對話」成果的廣告；顏色越深＝越貴。格內小字＝花費／私訊數</div>
-      <div class="tbl-wrap" style="max-height:none" id="matrix"></div>
-    </div>
-
     <div class="card full" id="trend-card" style="display:none">
       <h2>每日花費趨勢</h2>
       <div class="desc">Meta 匯出時選「細分 → 依時間 → 天」才會有</div>
@@ -558,7 +534,7 @@ function renderInsights(list){
   if(ga.length>=2){
     const b=ga[0], w=ga[ga.length-1];
     out.push(insight(w.cpa/b.cpa>1.3?'warn':'info','⇄',`受眾「${esc(b.k)}」每私訊 ${money(b.cpa)}，「${esc(w.k)}」${money(w.cpa)}（貴 ${pct(w.cpa/b.cpa-1)}）`,
-      ga.map(g=>`${esc(g.k)} ${money(g.cpa)}（${fmt(g.msgN)} 則／${money(g.msgSpend)}）`).join('；')+'。同療程跨受眾的差異請看「療程 × 受眾」矩陣，再決定預算要往哪邊移。'));
+      ga.map(g=>`${esc(g.k)} ${money(g.cpa)}（${fmt(g.msgN)} 則／${money(g.msgSpend)}）`).join('；')+'。可依此決定預算要往哪個受眾移。'));
   }
   // 3 療程 CPA
   const gt=group(msg,'treat').filter(g=>g.msgSpend>=minS*2 && g.msgN>0).sort((a,b)=>a.cpa-b.cpa);
@@ -630,11 +606,7 @@ function render(){
   const list=filtered(), total=sum(list,a=>a.spend);
   renderKPIs(list);
   renderRank(list);
-  barList($('#by-treat'),group(list,'treat'),total,{onClick:g=>setFilter('f-treat',g.k)});
-  barList($('#by-branch'),group(list,'branch'),total,{onClick:g=>setFilter('f-branch',g.k)});
-  barList($('#by-goal'),group(list,a=>a.goal+(a.format?'-'+a.format:'')),total,{color:'var(--bar-2)'});
-  barList($('#by-aud'),group(list,a=>a.branch+'｜'+a.audS),total);
-  renderMatrix(list); renderTrend(list); renderFunnel(list); renderInsights(list); renderDetail(list);
+  renderTrend(list); renderFunnel(list); renderInsights(list); renderDetail(list);
 }
 
 /* ================== tooltip ================== */
