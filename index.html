@@ -107,7 +107,6 @@ td.wr{white-space:normal;min-width:200px;max-width:320px}
 .mx td.cell small{display:block;color:var(--text-2);font-size:11px}
 .mx td.cell.c1{background:var(--seq-1)} .mx td.cell.c2{background:var(--seq-2)} .mx td.cell.c3{background:var(--seq-3);color:#fff} .mx td.cell.c4{background:var(--seq-4);color:#fff} .mx td.cell.c5{background:var(--seq-5);color:#fff}
 .mx td.cell.c3 small,.mx td.cell.c4 small,.mx td.cell.c5 small{color:rgba(255,255,255,.85)}
-/* funnel */
 .fn{display:flex;flex-direction:column;gap:6px}
 .empty{padding:18px;border:1px dashed var(--border);border-radius:10px;color:var(--text-2);font-size:13px}
 .drop{position:fixed;inset:0;background:rgba(42,120,214,.12);border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;font-size:20px;z-index:50;color:var(--accent);font-weight:700}
@@ -199,12 +198,6 @@ a{color:var(--accent)}
       <h2>每日花費趨勢</h2>
       <div class="desc">Meta 匯出時選「細分 → 依時間 → 天」才會有</div>
       <div id="trend"></div>
-    </div>
-
-    <div class="card full">
-      <h2>漏斗：花費 → 私訊 → 到診 → 成交</h2>
-      <div class="desc">私訊之後的數字來自 data/pitcher_input.xlsx「每週成效回報」，依療程對齊廣告花費</div>
-      <div id="funnel"></div>
     </div>
 
     <div class="card full">
@@ -479,30 +472,6 @@ function renderTrend(list){
   $('#trend').querySelectorAll('circle').forEach(c=>tipOn(c,()=>c.dataset.t));
 }
 
-function renderFunnel(list){
-  const W=PITCHER.weekly;
-  if(!W.length){
-    $('#funnel').innerHTML=`<div class="empty">尚未有「每週成效回報」資料。請診所／客服在 <code>pitcher_input.xlsx</code> 填寫有效名單、預約、到診、成交後放進 <code>data/</code>，這裡會自動算出<b>每到診成本、每成交成本、ROAS</b>——這才是判斷廣告值不值得的關鍵指標。</div>`;
-    return;
-  }
-  const starts=list.map(a=>a.start).filter(Boolean).sort(), ends=list.map(a=>a.end).filter(Boolean).sort();
-  const from=starts[0]||'', to=ends[ends.length-1]||'9999';
-  const br=$('#f-branch').value, tr=$('#f-treat').value;
-  const wk=W.filter(r=>(!r.week||(r.week>=from&&r.week<=to)) && (!br||r.branch===br) && (!tr||r.treat===tr));
-  const treats=[...new Set([...list.map(a=>a.treat),...wk.map(r=>r.treat)])];
-  const rows=treats.map(t=>{
-    const ads=list.filter(a=>a.treat===t), w=wk.filter(r=>r.treat===t);
-    const spend=sum(ads,a=>a.spend), msg=sum(ads.filter(a=>a.resultType===CONFIG.msgResult),a=>a.results);
-    return {t,spend,msg,has:w.length>0,leads:sum(w,r=>r.leads),booked:sum(w,r=>r.booked),visits:sum(w,r=>r.visits),deals:sum(w,r=>r.deals),rev:sum(w,r=>r.revenue)};
-  }).filter(r=>r.spend||r.visits||r.rev).sort((a,b)=>b.spend-a.spend);
-  const T=rows.reduce((s,r)=>{['spend','msg','leads','booked','visits','deals','rev'].forEach(k=>s[k]=(s[k]||0)+r[k]);return s;},{t:'合計'});
-  const line=r=>`<tr${r.has===false?' style="color:var(--muted)" title="這個療程尚無回報資料"':''}><td>${esc(r.t)}${r.has===false?' <small>（未回報）</small>':''}</td><td class="num">${money(r.spend)}</td><td class="num">${fmt(r.msg)}</td><td class="num">${fmt(r.leads)}</td><td class="num">${fmt(r.booked)}</td><td class="num">${fmt(r.visits)}</td><td class="num">${fmt(r.deals)}</td><td class="num">${money(r.rev)}</td>
-    <td class="num">${pct(r.msg?r.visits/r.msg:null)}</td><td class="num">${money(r.visits?r.spend/r.visits:null)}</td><td class="num">${money(r.deals?r.spend/r.deals:null)}</td><td class="num"><b>${r.spend&&r.has!==false?fmt1(r.rev/r.spend)+'x':'–'}</b></td></tr>`;
-  $('#funnel').innerHTML=`<div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>療程</th><th class="num">花費</th><th class="num">私訊</th><th class="num">有效名單</th><th class="num">預約</th><th class="num">到診</th><th class="num">成交</th><th class="num">成交金額</th><th class="num">私訊→到診</th><th class="num">每到診成本</th><th class="num">每成交成本</th><th class="num">ROAS</th></tr></thead>
-  <tbody>${rows.map(line).join('')}</tbody><tfoot>${line(T).replace('<tr>','<tr style="font-weight:700">')}</tfoot></table></div>
-  <div class="desc" style="margin-top:6px">回報週期：${esc(from)} ～ ${esc(to)} 之間的週次｜ROAS＝成交金額 ÷ 廣告花費</div>`;
-}
-
 const COLS=[
   ['status','狀態',a=>`<span class="pill ${a.statusRaw==='active'?'on':a.statusRaw==='not_delivering'?'nd':'off'}">${esc(a.status)}</span>`],
   ['name','廣告名稱',a=>`<b>${esc(a.name)}</b>`],
@@ -558,7 +527,7 @@ function renderInsights(list){
   // 3 療程 CPA
   const gt=group(msg,'treat').filter(g=>g.msgSpend>=minS*2 && g.msgN>0).sort((a,b)=>a.cpa-b.cpa);
   if(gt.length>=2) out.push(insight('info','◆',`每私訊最便宜：${esc(gt[0].k)} ${money(gt[0].cpa)}；最貴：${esc(gt[gt.length-1].k)} ${money(gt[gt.length-1].cpa)}`,
-    '（已排除測試與命名不符的廣告）不同療程客單價不同，私訊成本高不一定不划算——要搭配「每週成效回報」的到診與成交金額才能判斷 ROAS。'));
+    '（已排除測試與命名不符的廣告）不同療程客單價不同，私訊成本高不一定不划算，要搭配實際到診與成交狀況判斷。'));
   // 4 零成果
   const zero=list.filter(a=>a.spend>=minS && !a.results);
   if(zero.length) out.push(insight('bad','!',`${zero.length} 支廣告花費 ≥ ${money(minS)} 但 0 成果，共 ${money(sum(zero,a=>a.spend))}`, zero.map(a=>`${esc(a.name)}（${esc(a.audS)}）${money(a.spend)}`).join('、')));
@@ -625,7 +594,7 @@ function render(){
   const list=filtered(), total=sum(list,a=>a.spend);
   renderKPIs(list);
   renderRank(list);
-  renderTrend(list); renderFunnel(list); renderInsights(list); renderDetail(list);
+  renderTrend(list); renderInsights(list); renderDetail(list);
 }
 
 /* ================== tooltip ================== */
@@ -661,7 +630,7 @@ async function loadLocal(files){
   try{
   for(const f of files){
     const buf=await f.arrayBuffer(); const wb=await readWorkbook(buf,f.name);
-    if(wb.Sheets['每週成效回報']||wb.Sheets['廣告補充']) PITCHER=parsePitcher(wb);
+    if(wb.Sheets['療程對照']||wb.Sheets['廣告補充']) PITCHER=parsePitcher(wb);
     else { ADS=parseMeta(wb); SOURCE='本機檔案 '+f.name; }
   }
   if(!ADS.length){ showStatus('已讀取投手填寫表，請再加入 Meta 匯出檔。'); return; }
