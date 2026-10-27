@@ -179,11 +179,6 @@ a{color:var(--accent)}
     <div class="sec-h"><h2>廣告 → 預約 → 到店</h2><span class="sub" id="c-info"></span></div>
     <div class="ctl">
       <label>廣告分店 <select id="c-branch"></select></label>
-      <label>Meta 預約率分母 <select id="c-den">
-        <option value="clicks">連結點擊次數</option>
-        <option value="msg">私訊對話數</option>
-        <option value="reach">觸及人數（加總）</option>
-      </select></label>
     </div>
     <div class="kpis" id="c-kpis"></div>
     <div class="ins" id="c-notes" style="margin-bottom:14px"></div>
@@ -315,7 +310,8 @@ const CONFIG = {
     'actions:lead':'名單',
   },
   msgResult: '私訊對話',
-  metaSources: ['facebook','instagram'],   // 預約資料「客戶來源」算作 Meta 廣告的值（小寫比對）
+  metaSources: ['facebook','instagram'],
+  bookingDen: 'msg',                        // Meta 預約率分母：msg 私訊對話數（clicks／reach 為備用）   // 預約資料「客戶來源」算作 Meta 廣告的值（小寫比對）
 };
 
 /* ================== 工具 ================== */
@@ -775,12 +771,11 @@ function renderCombo(){
   if(!COMBO_INIT){
     const clinic=(BOOK.find(v=>v.clinic)||{}).clinic||'', key=clinic.replace(/館|診所|分店/g,'');
     sel.dataset.v=branches.find(b=>key && (b.includes(key)||key.includes(b)))||'';
-    $('#c-den').value=ADS.some(a=>a.clicks)?'clicks':'msg';
     COMBO_INIT=true;
   }
   const cur=sel.dataset.v??'';
   sel.innerHTML='<option value="">全部分店</option>'+branches.map(b=>`<option${b===cur?' selected':''}>${esc(b)}</option>`).join('');
-  const den=$('#c-den').value, denName={clicks:'連結點擊',msg:'私訊對話',reach:'觸及'}[den];
+  const den=CONFIG.bookingDen, denName='私訊對話';
   const ads=ADS.filter(a=>!cur||a.branch===cur);
   const denOf=a=>den==='clicks'?a.clicks:den==='reach'?a.reach:(a.resultType===CONFIG.msgResult?a.results:0);
   const ds=ads.map(a=>a.day||a.start).filter(Boolean).sort(), de=ads.map(a=>a.day||a.end).filter(Boolean).sort();
@@ -791,7 +786,7 @@ function renderCombo(){
   $('#c-info').textContent=`比對期間 ${s||'?'} ～ ${e||'?'}｜廣告 ${ads.length} 支｜預約 ${win.length} 人次`;
   $('#c-kpis').innerHTML=kpiHtml([
     ['廣告花費',money(spend),cur?`分店：${cur}`:'全部分店'],
-    [denName+'數',fmt(D),'Meta 預約率的分母'],
+    ['私訊對話數',fmt(D),'點擊或看過廣告的人數（Meta 後台）'],
     ['Meta 預約人次',fmt(meta.length),'來源 Facebook＋Instagram'],
     ['Meta 預約率',D?pctL(meta.length/D):'–',`Meta 預約 ÷ ${denName}`,true],
     ['Meta 到店率',pctL(metaSet.length?metaA/metaSet.length:null),`已結算：到店 ${metaA} ÷ 預約 ${metaSet.length}`,true],
@@ -799,7 +794,7 @@ function renderCombo(){
   ]);
   const notes=[];
   if(!win.length) notes.push(insight('bad','!','廣告期間和預約資料的日期沒有重疊',`廣告 ${s||'?'}～${e||'?'}；預約 ${span(BOOK)}。請確認兩份檔案是同一段期間。`));
-  if(!D) notes.push(insight('warn','!',`廣告檔沒有「${denName}」數字`,den==='clicks'?'Meta 匯出時請在欄位加上「連結點擊次數」，或把分母切成「私訊對話數」。':'請換一個分母。'));
+  if(!D) notes.push(insight('warn','!','這段期間的廣告沒有「私訊對話」成果','Meta 預約率的分母是私訊對話數；請確認匯出的是私訊型廣告，且「成果指標」欄位是私訊對話。'));
   const unk=win.filter(v=>/尚未確認|未填/.test(v.src)).length;
   if(win.length && unk) notes.push(insight('info','i',`同期間有 ${unk} 人次（${pctL(unk/win.length)}）來源未確認`,'其中若有廣告客，實際 Meta 預約率會更高；目前數字是下限。'));
   if(ads.length && cur==='' && branches.length>1) notes.push(insight('info','i','分母目前是全部分店的廣告','預約檔只有單一診所時，建議在「廣告分店」選對應的分店，分子分母才一致。'));
@@ -820,7 +815,6 @@ function renderCombo(){
   }
 }
 $('#c-branch').addEventListener('change',e=>{ e.target.dataset.v=e.target.value; renderCombo(); });
-$('#c-den').addEventListener('change',renderCombo);
 
 /* ================== tooltip ================== */
 const tip=$('#tip');
