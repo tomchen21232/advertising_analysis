@@ -119,7 +119,22 @@ td.wr{white-space:normal;min-width:200px;max-width:320px}
 .landing p{color:var(--text-2);margin:4px 0}
 .landing .btn{margin-top:14px;font-size:15px;padding:10px 22px}
 .landing ol{display:inline-block;text-align:left;color:var(--text-2);font-size:13px;margin:16px auto 0;padding-left:20px}
-body.nodata .filters,body.nodata .kpis,body.nodata .grid,body.nodata #btn-csv{display:none}
+body:not(.has-ads) .ads-only{display:none!important}
+body:not(.has-book) .book-only{display:none!important}
+body:not(.has-ads) .both-only,body:not(.has-book) .both-only{display:none!important}
+.sec-h{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:20px 0 10px}
+.sec-h h2{font-size:17px;margin:0;font-weight:700}
+.sec-h .sub{font-size:12px}
+.seg{display:inline-flex;gap:4px;flex-wrap:wrap}
+.seg button{font:inherit;font-size:12px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:4px 12px;cursor:pointer}
+.seg button.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.kpi.hl{border-color:var(--accent)}
+.kpi.hl .v{color:var(--accent)}
+td.bad{color:var(--bad)} td.dim{color:var(--muted)}
+.ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;font-size:12px;color:var(--text-2)}
+.ctl label{display:flex;gap:6px;align-items:center}
+.defs{font-size:12px;color:var(--text-2);line-height:1.7}
+.defs b{color:var(--text)}
 body:not(.nodata) .landing{display:none}
 .status-msg{padding:14px;border-radius:10px;background:var(--warn-bg);color:var(--text);margin-bottom:14px;display:none}
 .foot{color:var(--muted);font-size:12px;margin-top:20px}
@@ -131,12 +146,12 @@ a{color:var(--accent)}
 <div class="wrap">
   <header class="top">
     <div>
-      <h1>Meta 廣告成效儀表板</h1>
+      <h1>Meta 廣告成效與預約儀表板</h1>
       <div class="sub" id="meta-info">讀取資料中…</div>
     </div>
     <div class="toolbar">
       <button class="btn" id="btn-local" title="選擇本機檔案，只在瀏覽器內讀取，不會上傳">上傳／更換檔案</button>
-      <button class="btn" id="btn-csv">匯出目前明細 CSV</button>
+      <button class="btn ads-only" id="btn-csv">匯出目前明細 CSV</button>
       <button class="btn" id="btn-theme" aria-label="切換深淺色">深／淺色</button>
       <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple hidden>
     </div>
@@ -145,9 +160,10 @@ a{color:var(--accent)}
   <div class="status-msg" id="status"></div>
 
   <div class="landing" id="landing">
-    <h2>上傳 Meta 廣告匯出檔開始分析</h2>
-    <p>把檔案拖進這個頁面，或按下面的按鈕選擇檔案（.csv / .xlsx 皆可）</p>
-    <p>可以同時選 Meta 匯出檔＋投手填寫表 pitcher_input.xlsx（選填）</p>
+    <h2>上傳檔案開始分析</h2>
+    <p>把檔案拖進這個頁面，或按下面的按鈕選擇檔案（.csv / .xlsx 皆可，可一次選多個）</p>
+    <p>① Meta 廣告匯出檔 → 廣告成效　② 診所預約資料 → 預約與到店　兩份都有 → 另外算出 <b>Meta 預約率</b></p>
+    <p>投手填寫表 pitcher_input.xlsx 為選填</p>
     <button class="btn primary" id="btn-landing">選擇檔案</button>
     <p style="font-size:12px;margin-top:12px">🔒 檔案只在你的瀏覽器內讀取，不會上傳到任何伺服器；關掉或重新整理頁面就會清除</p>
     <ol>
@@ -157,7 +173,63 @@ a{color:var(--accent)}
     </ol>
   </div>
 
-  <div class="filters" id="filters">
+
+  <!-- ===== 廣告 × 預約（兩份檔案都有才顯示） ===== -->
+  <section class="both-only" id="combo">
+    <div class="sec-h"><h2>廣告 → 預約 → 到店</h2><span class="sub" id="c-info"></span></div>
+    <div class="ctl">
+      <label>廣告分店 <select id="c-branch"></select></label>
+      <label>Meta 預約率分母 <select id="c-den">
+        <option value="clicks">連結點擊次數</option>
+        <option value="msg">私訊對話數</option>
+        <option value="reach">觸及人數（加總）</option>
+      </select></label>
+    </div>
+    <div class="kpis" id="c-kpis"></div>
+    <div class="ins" id="c-notes" style="margin-bottom:14px"></div>
+    <div class="card full" id="c-daily-card" style="margin-bottom:14px">
+      <h2>每日 Meta 預約率</h2>
+      <div class="desc">柱上數字為當天 Meta 預約率；預約日期以「預約時間」（看診日）計，點擊當天約到之後的人會落在其他天，請以整段期間數字為準</div>
+      <div id="c-chart"></div>
+      <div class="tbl-wrap" id="c-table" style="margin-top:10px;max-height:360px"></div>
+    </div>
+  </section>
+
+  <!-- ===== 預約與到店（有預約檔才顯示） ===== -->
+  <section class="book-only" id="book">
+    <div class="sec-h"><h2>預約與到店</h2><span class="sub" id="b-info"></span></div>
+    <div class="ctl"><span>統計範圍</span><div class="seg" id="b-scope"></div></div>
+    <div class="kpis" id="b-kpis"></div>
+    <div class="ins" id="b-notes" style="margin-bottom:14px"></div>
+    <div class="grid">
+      <div class="card full">
+        <h2>每日預約與到店</h2>
+        <div class="desc">柱子＝當天預約人次，柱上數字為到店率</div>
+        <div class="legend"><span><i style="background:var(--bar)"></i>到店</span><span><i style="background:var(--bad)"></i>未到（已結算）</span><span><i style="background:var(--warn)"></i>未報到（待確認／今日）</span><span><i style="background:var(--muted)"></i>未來預約</span></div>
+        <div id="b-chart"></div>
+      </div>
+      <div class="card">
+        <h2>依客戶來源</h2>
+        <div class="desc">預約占比＝該來源預約人次 ÷ 範圍內全部預約人次</div>
+        <div class="tbl-wrap" id="b-src" style="max-height:420px"></div>
+      </div>
+      <div class="card">
+        <h2>每日明細</h2>
+        <div class="desc">Meta 占比＝當天 Facebook＋Instagram 預約 ÷ 當天全部預約</div>
+        <div class="tbl-wrap" id="b-days" style="max-height:420px"></div>
+      </div>
+      <div class="card full defs">
+        <h2>口徑說明</h2>
+        <div><b>預約人次：</b>同一客戶同一天算 1 次（例如「A1 諮詢＋療程」兩列只算一次）；當天任一列有報到即算到店。</div>
+        <div><b>到店：</b>報到狀態不是「未報到」即算到店（已付款、已完成但未核銷、待結帳…）。</div>
+        <div><b>Meta 預約：</b>客戶來源為 Facebook 或 Instagram。「尚未確認」的客人可能也有廣告客，所以 Meta 數字是下限。</div>
+        <div><b>已結算：</b>今天以前、且報到狀態已回填的日子。最近幾天如果全部都是「未報到」，系統判定為「狀態待確認」（疑似未回填），不算進到店率。</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="sec-h ads-only"><h2>廣告成效</h2></div>
+  <div class="filters ads-only" id="filters">
     <label>分店 <select id="f-branch"></select></label>
     <label>目標 <select id="f-goal"></select></label>
     <label>療程 <select id="f-treat"></select></label>
@@ -167,9 +239,9 @@ a{color:var(--accent)}
     <button class="btn" id="btn-reset">重設</button>
   </div>
 
-  <section class="kpis" id="kpis"></section>
+  <section class="kpis ads-only" id="kpis"></section>
 
-  <section class="grid">
+  <section class="grid ads-only">
     <div class="card full">
       <h2>廣告花費排行</h2>
       <div class="desc" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
@@ -243,6 +315,7 @@ const CONFIG = {
     'actions:lead':'名單',
   },
   msgResult: '私訊對話',
+  metaSources: ['facebook','instagram'],   // 預約資料「客戶來源」算作 Meta 廣告的值（小寫比對）
 };
 
 /* ================== 工具 ================== */
@@ -597,6 +670,158 @@ function render(){
   renderTrend(list); renderInsights(list); renderDetail(list);
 }
 
+
+/* ================== 預約資料 ================== */
+let BOOK=[], BOOK_SRC='', BSCOPE='settled', COMBO_INIT=false;
+function findHeaderRow(ws){
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true}).slice(0,10);
+  return rows.findIndex(r=>r.some(c=>String(c).trim()==='報到狀態') && r.some(c=>String(c).includes('預約時間')));
+}
+function isBooking(wb){ const ws=wb.Sheets[wb.SheetNames[0]]; return !!ws && findHeaderRow(ws)>=0; }
+function parseBooking(wb){
+  const ws=wb.Sheets[wb.SheetNames[0]], h=findHeaderRow(ws);
+  const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:true,range:h});
+  const m=new Map();
+  rows.forEach(r=>{
+    const date=ymd(pick(r,'預約時間')); if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const cust=String(pick(r,'電話去識別化','電話','手機')??'')+'§'+String(pick(r,'姓名去識別化','姓名')??'');
+    const k=cust+'§'+date, st=String(pick(r,'報到狀態')??'').trim(), src=String(pick(r,'客戶來源')??'').trim()||'未填';
+    const v=m.get(k)||{date,srcs:{},arrived:false,newOld:String(pick(r,'新舊客')??'').trim()||'未填',clinic:String(pick(r,'診所')??'').trim(),rows:0};
+    v.rows++; v.srcs[src]=(v.srcs[src]||0)+1; if(st && st!=='未報到') v.arrived=true;
+    m.set(k,v);
+  });
+  const visits=[...m.values()].map(v=>{ const src=Object.entries(v.srcs).sort((a,b)=>b[1]-a[1])[0][0]; return {...v,src,meta:CONFIG.metaSources.includes(src.toLowerCase())}; });
+  const t=ymd(new Date());
+  const past=[...new Set(visits.filter(v=>v.date<t).map(v=>v.date))].sort().reverse(), pend=new Set();
+  for(const d of past){ if(visits.some(v=>v.date===d&&v.arrived)) break; pend.add(d); }
+  visits.forEach(v=>v.zone=v.date>t?'未來預約':v.date===t?'今日':pend.has(v.date)?'狀態待確認':'已結算');
+  visits._rows=rows.length;
+  return visits;
+}
+const BSCOPES={settled:v=>v.zone==='已結算', today:v=>v.zone!=='未來預約', all:()=>true};
+const span=list=>{ const d=list.map(v=>v.date).sort(); return d.length?`${d[0].slice(5).replace('-','/')}–${d[d.length-1].slice(5).replace('-','/')}`:'無'; };
+function bstats(list){
+  const n=list.length, a=list.filter(v=>v.arrived).length, meta=list.filter(v=>v.meta), ma=meta.filter(v=>v.arrived).length;
+  return {n,a,miss:n-a,rate:n?a/n:null,metaN:meta.length,metaA:ma,metaShare:n?meta.length/n:null,metaRate:meta.length?ma/meta.length:null};
+}
+function zoneColor(z){ return z==='已結算'?'var(--bad)':z==='未來預約'?'var(--muted)':'var(--warn)'; }
+
+/* 通用長條圖：stacks 由下往上疊，label 寫在柱頂；窄時直式 */
+function barChart(el,rows,o){
+  if(!rows.length){ el.innerHTML='<div class="empty">無資料</div>'; return; }
+  const W=Math.max(320,el.clientWidth||900), n=rows.length, P0=48, step=(W-P0-8)/n, rot=step<40;
+  const H=o.H||230, P={l:P0,r:8,t:rot?54:24,b:26};
+  const tot=r=>o.stacks.reduce((s,k)=>s+(k.val(r)||0),0);
+  const max=Math.max(o.min||0,...rows.map(tot))||1;
+  const y=v=>P.t+(H-P.t-P.b)*(1-v/max), bw=Math.min(32,step*0.7);
+  let s=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria||'')}">`;
+  for(let i=0;i<=4;i++){ const v=max*i/4; s+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--border)"/><text x="${P.l-6}" y="${y(v)+4}" text-anchor="end">${o.tick?o.tick(v):fmt(v)}</text>`; }
+  rows.forEach((r,i)=>{
+    const cx=P.l+step*i+step/2; let acc=0;
+    o.stacks.forEach(k=>{ const v=k.val(r)||0; if(v>0) s+=`<rect x="${cx-bw/2}" width="${bw}" y="${y(acc+v)}" height="${y(acc)-y(acc+v)}" fill="${k.color(r)}" rx="3"/>`; acc+=v; });
+    const lb=o.label(r);
+    if(lb!=null){ const ly=y(acc)-4; s+=rot?`<text transform="translate(${cx},${ly}) rotate(-90)" text-anchor="start" dy="0.32em" style="fill:var(--text)">${lb}</text>`:`<text x="${cx}" y="${ly}" text-anchor="middle" style="fill:var(--text)">${lb}</text>`; }
+  });
+  const every=Math.ceil(n/Math.max(1,Math.floor((W-P.l)/44)));
+  rows.forEach((r,i)=>{ if(i%every===0) s+=`<text x="${P.l+step*i+step/2}" y="${H-6}" text-anchor="middle">${o.x(r)}</text>`; });
+  rows.forEach((r,i)=>{ s+=`<rect class="hit" data-i="${i}" x="${P.l+step*i}" width="${step}" y="${P.t}" height="${H-P.t-P.b}" fill="transparent"/>`; });
+  el.innerHTML=s+'</svg>';
+  el.querySelectorAll('.hit').forEach(h=>tipOn(h,()=>o.tip(rows[+h.dataset.i])));
+}
+const pctL=v=>v==null?'–':(Math.round(v*1000)/10)+'%';
+function kpiHtml(k){ return k.map(([l,v,n,hl])=>`<div class="kpi${hl?' hl':''}"><div class="l">${l}</div><div class="v">${v}</div><div class="n">${n}</div></div>`).join(''); }
+function tableHtml(head,rows){ return `<table><thead><tr>${head.map(([t,num])=>`<th class="${num?'num':''}">${t}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`; }
+
+function renderBook(){
+  const settled=BOOK.filter(BSCOPES.settled), upto=BOOK.filter(BSCOPES.today);
+  const labels={settled:`已結算 ${span(settled)}`, today:`截至今日 ${span(upto)}`, all:`全部（含未來預約）${span(BOOK)}`};
+  $('#b-scope').innerHTML=Object.entries(labels).map(([k,t])=>`<button data-k="${k}" class="${k===BSCOPE?'on':''}">${esc(t)}</button>`).join('');
+  $('#b-scope').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ BSCOPE=b.dataset.k; renderBook(); }));
+  const list=BOOK.filter(BSCOPES[BSCOPE]), st=bstats(list);
+  $('#b-kpis').innerHTML=kpiHtml([
+    ['預約人次',fmt(st.n),`${labels[BSCOPE]}`],
+    ['實際到店人次',fmt(st.a),'報到狀態 ≠ 未報到'],
+    ['未到店人次',fmt(st.miss),'報到狀態＝未報到'],
+    ['到店率',pctL(st.rate),'到店 ÷ 預約',true],
+    ['Meta 預約人次',fmt(st.metaN),`占全部預約 ${pctL(st.metaShare)}`],
+    ['Meta 到店率',pctL(st.metaRate),`Meta 到店 ${fmt(st.metaA)} ÷ Meta 預約 ${fmt(st.metaN)}`,true],
+  ]);
+  const notes=[], pend=[...new Set(BOOK.filter(v=>v.zone==='狀態待確認').map(v=>v.date.slice(5).replace('-','/')))];
+  if(pend.length) notes.push(insight('warn','!',`${pend.join('、')} 的預約全部是「未報到」，判定為狀態尚未回填`,`共 ${BOOK.filter(v=>v.zone==='狀態待確認').length} 人次，預設不算進到店率；回填後重新上傳檔案即可。`));
+  if(BSCOPE!=='settled') notes.push(insight('info','i','目前範圍包含尚未發生或尚未回填的預約','這些都會被算成「未到」，到店率會被低估；看到店率請切回「已結算」。'));
+  const unk=list.filter(v=>/尚未確認|未填/.test(v.src)).length;
+  if(list.length && unk/list.length>0.2) notes.push(insight('warn','?',`${pctL(unk/list.length)} 的預約來源是「尚未確認／未填」`,'來源分析與 Meta 數字都會因此偏低，建議櫃台預約時就填好客戶來源。'));
+  $('#b-notes').innerHTML=notes.join('');
+  // 每日
+  const dm=new Map(); BOOK.forEach(v=>{ const d=dm.get(v.date)||{date:v.date,zone:v.zone,n:0,a:0,m:0}; d.n++; if(v.arrived) d.a++; if(v.meta) d.m++; dm.set(v.date,d); });
+  const days=[...dm.values()].sort((a,b)=>a.date<b.date?-1:1);
+  barChart($('#b-chart'),days,{aria:'每日預約與到店',x:d=>d.date.slice(5).replace('-','/'),
+    stacks:[{val:d=>d.a,color:()=>'var(--bar)'},{val:d=>d.n-d.a,color:d=>zoneColor(d.zone)}],
+    label:d=>d.zone==='已結算'?pctL(d.a/d.n):null,
+    tip:d=>`<b>${d.date}</b>｜${d.zone}<br>預約 ${d.n}｜到店 ${d.a}｜未到 ${d.n-d.a}<br>到店率 ${pctL(d.a/d.n)}｜Meta 預約 ${d.m}`});
+  $('#b-days').innerHTML=tableHtml([['日期'],['狀態'],['預約',1],['到店',1],['未到',1],['到店率',1],['Meta 預約',1],['Meta 占比',1]],
+    days.map(d=>`<tr><td>${d.date}</td><td class="${d.zone==='已結算'?'':'dim'}">${d.zone}</td><td class="num">${d.n}</td><td class="num">${d.a}</td><td class="num ${d.zone==='已結算'&&d.n>d.a?'bad':''}">${d.n-d.a}</td><td class="num ${d.zone==='已結算'?'':'dim'}">${pctL(d.a/d.n)}</td><td class="num">${d.m}</td><td class="num">${pctL(d.m/d.n)}</td></tr>`));
+  // 來源
+  const sm=new Map(); list.forEach(v=>{ const x=sm.get(v.src)||{k:v.src,n:0,a:0}; x.n++; if(v.arrived) x.a++; sm.set(v.src,x); });
+  const srcs=[...sm.values()].sort((a,b)=>b.n-a.n);
+  $('#b-src').innerHTML=list.length?tableHtml([['客戶來源'],['預約',1],['預約占比',1],['到店',1],['未到',1],['到店率',1]],
+    srcs.map(x=>`<tr><td>${esc(x.k)}${CONFIG.metaSources.includes(x.k.toLowerCase())?' <span class="pill">Meta</span>':''}</td><td class="num">${x.n}</td><td class="num">${pctL(x.n/list.length)}</td><td class="num">${x.a}</td><td class="num ${x.n>x.a?'bad':''}">${x.n-x.a}</td><td class="num">${pctL(x.a/x.n)}</td></tr>`)):'<div class="empty">此範圍沒有預約</div>';
+  const clinics=[...new Set(BOOK.map(v=>v.clinic).filter(Boolean))].join('、');
+  $('#b-info').textContent=`${clinics?clinics+'｜':''}${BOOK._rows} 筆排程 → ${BOOK.length} 預約人次｜${BOOK_SRC}`;
+}
+
+function renderCombo(){
+  const sel=$('#c-branch'), branches=[...new Set(ADS.map(a=>a.branch))].sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+  if(!COMBO_INIT){
+    const clinic=(BOOK.find(v=>v.clinic)||{}).clinic||'', key=clinic.replace(/館|診所|分店/g,'');
+    sel.dataset.v=branches.find(b=>key && (b.includes(key)||key.includes(b)))||'';
+    $('#c-den').value=ADS.some(a=>a.clicks)?'clicks':'msg';
+    COMBO_INIT=true;
+  }
+  const cur=sel.dataset.v??'';
+  sel.innerHTML='<option value="">全部分店</option>'+branches.map(b=>`<option${b===cur?' selected':''}>${esc(b)}</option>`).join('');
+  const den=$('#c-den').value, denName={clicks:'連結點擊',msg:'私訊對話',reach:'觸及'}[den];
+  const ads=ADS.filter(a=>!cur||a.branch===cur);
+  const denOf=a=>den==='clicks'?a.clicks:den==='reach'?a.reach:(a.resultType===CONFIG.msgResult?a.results:0);
+  const ds=ads.map(a=>a.day||a.start).filter(Boolean).sort(), de=ads.map(a=>a.day||a.end).filter(Boolean).sort();
+  const s=ds[0], e=de[de.length-1];
+  const win=s&&e?BOOK.filter(v=>v.date>=s&&v.date<=e):[];
+  const meta=win.filter(v=>v.meta), metaSet=meta.filter(v=>v.zone==='已結算'), metaA=metaSet.filter(v=>v.arrived).length;
+  const spend=sum(ads,a=>a.spend), D=sum(ads,denOf);
+  $('#c-info').textContent=`比對期間 ${s||'?'} ～ ${e||'?'}｜廣告 ${ads.length} 支｜預約 ${win.length} 人次`;
+  $('#c-kpis').innerHTML=kpiHtml([
+    ['廣告花費',money(spend),cur?`分店：${cur}`:'全部分店'],
+    [denName+'數',fmt(D),'Meta 預約率的分母'],
+    ['Meta 預約人次',fmt(meta.length),'來源 Facebook＋Instagram'],
+    ['Meta 預約率',D?pctL(meta.length/D):'–',`Meta 預約 ÷ ${denName}`,true],
+    ['Meta 到店率',pctL(metaSet.length?metaA/metaSet.length:null),`已結算：到店 ${metaA} ÷ 預約 ${metaSet.length}`,true],
+    ['每筆 Meta 預約成本',money(meta.length?spend/meta.length:null),`每位到店 ${money(metaA?spend/metaA:null)}（未來預約尚未到店，期間未結束前偏高）`],
+  ]);
+  const notes=[];
+  if(!win.length) notes.push(insight('bad','!','廣告期間和預約資料的日期沒有重疊',`廣告 ${s||'?'}～${e||'?'}；預約 ${span(BOOK)}。請確認兩份檔案是同一段期間。`));
+  if(!D) notes.push(insight('warn','!',`廣告檔沒有「${denName}」數字`,den==='clicks'?'Meta 匯出時請在欄位加上「連結點擊次數」，或把分母切成「私訊對話數」。':'請換一個分母。'));
+  const unk=win.filter(v=>/尚未確認|未填/.test(v.src)).length;
+  if(win.length && unk) notes.push(insight('info','i',`同期間有 ${unk} 人次（${pctL(unk/win.length)}）來源未確認`,'其中若有廣告客，實際 Meta 預約率會更高；目前數字是下限。'));
+  if(ads.length && cur==='' && branches.length>1) notes.push(insight('info','i','分母目前是全部分店的廣告','預約檔只有單一診所時，建議在「廣告分店」選對應的分店，分子分母才一致。'));
+  $('#c-notes').innerHTML=notes.join('');
+  // 每日
+  const hasDay=ads.some(a=>a.day);
+  $('#c-daily-card').style.display=hasDay?'':'none';
+  if(hasDay){
+    const dm=new Map();
+    ads.forEach(a=>{ if(!a.day) return; const d=dm.get(a.day)||{date:a.day,den:0,spend:0,m:0,n:0}; d.den+=denOf(a); d.spend+=a.spend; dm.set(a.day,d); });
+    win.forEach(v=>{ const d=dm.get(v.date); if(d){ d.n++; if(v.meta) d.m++; } });
+    const days=[...dm.values()].sort((a,b)=>a.date<b.date?-1:1).map(d=>({...d,r:d.den?d.m/d.den:null}));
+    barChart($('#c-chart'),days,{aria:'每日 Meta 預約率',x:d=>d.date.slice(5).replace('-','/'),tick:v=>pctL(v),
+      stacks:[{val:d=>d.r,color:()=>'var(--bar-2)'}],label:d=>pctL(d.r),
+      tip:d=>`<b>${d.date}</b><br>Meta 預約 ${d.m} ÷ ${denName} ${fmt(d.den)}<br>Meta 預約率 ${pctL(d.r)}<br>花費 ${money(d.spend)}`});
+    $('#c-table').innerHTML=tableHtml([['日期'],['花費',1],[denName,1],['Meta 預約',1],['Meta 預約率',1],['全部預約',1]],
+      days.map(d=>`<tr><td>${d.date}</td><td class="num">${money(d.spend)}</td><td class="num">${fmt(d.den)}</td><td class="num">${d.m}</td><td class="num">${pctL(d.r)}</td><td class="num">${d.n}</td></tr>`));
+  }
+}
+$('#c-branch').addEventListener('change',e=>{ e.target.dataset.v=e.target.value; renderCombo(); });
+$('#c-den').addEventListener('change',renderCombo);
+
 /* ================== tooltip ================== */
 const tip=$('#tip');
 function tipOn(el,fn){
@@ -607,9 +832,18 @@ function tipOn(el,fn){
 /* ================== 載入 ================== */
 function showStatus(html){ const s=$('#status'); s.innerHTML=html; s.style.display=html?'block':'none'; }
 function afterLoad(){
-  enrich(); buildFilters(); renderDQ(); render();
-  const s=ADS.map(a=>a.start).filter(Boolean).sort()[0], e=ADS.map(a=>a.end).filter(Boolean).sort().pop();
-  $('#meta-info').textContent=`資料期間 ${s||'?'} ～ ${e||'?'}｜${ADS.length} 支廣告｜來源：${SOURCE}${Object.keys(PITCHER.supp).length||PITCHER.weekly.length?'＋投手填寫表':''}`;
+  const b=document.body, hasA=ADS.length>0, hasB=BOOK.length>0;
+  b.classList.toggle('has-ads',hasA); b.classList.toggle('has-book',hasB); b.classList.toggle('nodata',!hasA&&!hasB);
+  const info=[];
+  if(hasA){
+    enrich(); buildFilters(); renderDQ(); render();
+    const s=ADS.map(a=>a.start).filter(Boolean).sort()[0], e=ADS.map(a=>a.end).filter(Boolean).sort().pop();
+    info.push(`廣告 ${s||'?'} ～ ${e||'?'}｜${ADS.length} 支｜${SOURCE}${Object.keys(PITCHER.supp).length||PITCHER.weekly.length?'＋投手填寫表':''}`);
+  }
+  if(hasB){ renderBook(); info.push(`預約 ${span(BOOK)}｜${BOOK.length} 人次`); }
+  if(hasA&&hasB) renderCombo();
+  else if(hasA||hasB) info.push(hasA?'再上傳預約資料可算 Meta 預約率':'再上傳 Meta 廣告匯出檔可算 Meta 預約率');
+  $('#meta-info').textContent=info.join('　·　');
 }
 async function loadRemote(){
   let found=false;
@@ -624,18 +858,19 @@ async function loadRemote(){
     showStatus('');
     return;
   }
-  showStatus(''); document.body.classList.remove('nodata'); afterLoad();
+  showStatus(''); afterLoad();
 }
 async function loadLocal(files){
   try{
   for(const f of files){
     const buf=await f.arrayBuffer(); const wb=await readWorkbook(buf,f.name);
     if(wb.Sheets['療程對照']||wb.Sheets['廣告補充']) PITCHER=parsePitcher(wb);
-    else { ADS=parseMeta(wb); SOURCE='本機檔案 '+f.name; }
+    else if(isBooking(wb)){ BOOK=parseBooking(wb); BOOK_SRC=f.name; BSCOPE='settled'; COMBO_INIT=false; }
+    else { const a=parseMeta(wb); if(!a.length) throw new Error('unknown file: '+f.name); ADS=a; SOURCE='本機檔案 '+f.name; COMBO_INIT=false; }
   }
-  if(!ADS.length){ showStatus('已讀取投手填寫表，請再加入 Meta 匯出檔。'); return; }
-  showStatus(''); document.body.classList.remove('nodata'); afterLoad();
-  }catch(e){ console.error(e); showStatus('檔案讀取失敗，請確認是 Meta 廣告管理員匯出的 CSV 或 Excel。'); }
+  if(!ADS.length && !BOOK.length){ showStatus('已讀取投手填寫表，請再加入 Meta 匯出檔或預約資料。'); return; }
+  showStatus(''); afterLoad();
+  }catch(e){ console.error(e); showStatus('檔案讀取失敗：請確認是 Meta 廣告管理員匯出的 CSV／Excel，或含「預約時間」「報到狀態」欄位的預約資料。'); }
 }
 
 /* ================== 事件 ================== */
