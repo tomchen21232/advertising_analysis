@@ -177,7 +177,7 @@ a{color:var(--accent)}
   <section class="both-only" id="combo">
     <div class="sec-h"><h2>廣告 → 預約 → 到店</h2><span class="sub" id="c-info"></span></div>
     <div class="ctl">
-      <label>廣告分店 <select id="c-branch"></select></label>
+      <label>門店 <select id="c-branch"></select></label><span>廣告組合的分店 ＝ 預約資料的「診所」，兩邊一起篩選</span>
     </div>
     <div class="kpis" id="c-kpis"></div>
     <div class="ins" id="c-notes" style="margin-bottom:14px"></div>
@@ -733,25 +733,28 @@ function renderBook(){
 }
 
 function renderCombo(){
-  const sel=$('#c-branch'), branches=[...new Set(ADS.map(a=>a.branch))].sort((a,b)=>a.localeCompare(b,'zh-Hant'));
-  if(!COMBO_INIT){
-    const clinic=(BOOK.find(v=>v.clinic)||{}).clinic||'', key=clinic.replace(/館|診所|分店/g,'');
-    sel.dataset.v=branches.find(b=>key && (b.includes(key)||key.includes(b)))||'';
-    COMBO_INIT=true;
-  }
-  const cur=sel.dataset.v??'';
-  sel.innerHTML='<option value="">全部分店</option>'+branches.map(b=>`<option${b===cur?' selected':''}>${esc(b)}</option>`).join('');
+  // 門店對齊：廣告組合的「分店」＝預約資料的「診所」（去掉 館／診所／分店 後比對，例：敦化 ＝ 敦化館）
+  const norm=x=>String(x||'').replace(/館|診所|分店|分院/g,'').trim();
+  const stores=new Map();
+  BOOK.forEach(v=>{ const k=norm(v.clinic); if(!k) return; const o=stores.get(k)||{k,label:v.clinic,ad:false,bk:false}; o.bk=true; o.label=v.clinic; stores.set(k,o); });
+  ADS.forEach(a=>{ const k=norm(a.branch); if(!k||a.branch==='未標示') return; const o=stores.get(k)||{k,label:a.branch,ad:false,bk:false}; o.ad=true; stores.set(k,o); });
+  const list=[...stores.values()].sort((a,b)=>(b.ad&&b.bk)-(a.ad&&a.bk)||a.label.localeCompare(b.label,'zh-Hant'));
+  const sel=$('#c-branch');
+  if(!COMBO_INIT){ const both=list.filter(o=>o.ad&&o.bk); sel.dataset.v=both.length===1?both[0].k:''; COMBO_INIT=true; }
+  const cur=sel.dataset.v??'', curO=stores.get(cur);
+  sel.innerHTML='<option value="">全部門店</option>'+list.map(o=>`<option value="${esc(o.k)}"${o.k===cur?' selected':''}>${esc(o.label)}${o.ad&&o.bk?'':o.ad?'（只有廣告）':'（只有預約）'}</option>`).join('');
   const den=CONFIG.bookingDen, denName='私訊對話';
-  const ads=ADS.filter(a=>!cur||a.branch===cur);
+  const ads=ADS.filter(a=>!cur||norm(a.branch)===cur);
+  const bookS=BOOK.filter(v=>!cur||norm(v.clinic)===cur);
   const denOf=a=>den==='clicks'?a.clicks:den==='reach'?a.reach:(a.msgCol||(a.resultType===CONFIG.msgResult?a.results:0));
   const ds=ads.map(a=>a.day||a.start).filter(Boolean).sort(), de=ads.map(a=>a.day||a.end).filter(Boolean).sort();
   const s=ds[0], e=de[de.length-1];
-  const win=s&&e?BOOK.filter(v=>v.date>=s&&v.date<=e):[];
+  const win=s&&e?bookS.filter(v=>v.date>=s&&v.date<=e):[];
   const meta=win.filter(v=>v.meta), metaSet=meta.filter(v=>v.zone==='已結算'), metaA=metaSet.filter(v=>v.arrived).length;
   const spend=sum(ads,a=>a.spend), D=sum(ads,denOf);
   $('#c-info').textContent=`比對期間 ${s||'?'} ～ ${e||'?'}｜廣告 ${ads.length} 支｜預約 ${win.length} 人次`;
   $('#c-kpis').innerHTML=kpiHtml([
-    ['廣告花費',money(spend),cur?`分店：${cur}`:'全部分店'],
+    ['廣告花費',money(spend),cur?`門店：${curO?curO.label:cur}`:'全部門店'],
     ['私訊對話數',fmt(D),'點擊或看過廣告的人數（Meta 後台）'],
     ['Meta 預約人次',fmt(meta.length),'來源 Facebook＋Instagram'],
     ['Meta 預約率',D?pctL(meta.length/D):'–',`Meta 預約 ÷ ${denName}`,true],
@@ -759,17 +762,19 @@ function renderCombo(){
     ['每筆 Meta 預約成本',money(meta.length?spend/meta.length:null),`每位到店 ${money(metaA?spend/metaA:null)}（未來預約尚未到店，期間未結束前偏高）`],
   ]);
   const notes=[];
-  if(!win.length) notes.push(insight('bad','!','廣告期間和預約資料的日期沒有重疊',`廣告 ${s||'?'}～${e||'?'}；預約 ${span(BOOK)}。請確認兩份檔案是同一段期間。`));
+  if(!win.length && bookS.length) notes.push(insight('bad','!','廣告期間和預約資料的日期沒有重疊',`廣告 ${s||'?'}～${e||'?'}；預約 ${span(bookS)}。請確認兩份檔案是同一段期間。`));
   if(!D){
     const types={}; ads.forEach(a=>{ const t=a.resultType||'無成果'; types[t]=(types[t]||0)+1; });
     const allD=sum(ADS,denOf);
     notes.push(insight('warn','!',`${cur?'「'+esc(cur)+'」':'這段期間'}的廣告沒有私訊對話數，Meta 預約率無法計算`,
       `這 ${ads.length} 支廣告的成果類型：${Object.entries(types).map(([t,n])=>esc(t)+' '+n+' 支').join('、')}。`+
-      (cur&&allD?`全部分店合計有 ${fmt(allD)} 則私訊對話，可把「廣告分店」切到「全部分店」，或確認敦化的廣告組合名稱是否寫對分店。`:'請確認匯出的是私訊型廣告，或在 Meta 匯出時加入「已開始的私訊對話」欄位。')));
+      (cur&&allD?`全部分店合計有 ${fmt(allD)} 則私訊對話，可把「門店」切到「全部門店」，或確認這間門店的廣告組合名稱是否寫對分店。`:'請確認匯出的是私訊型廣告，或在 Meta 匯出時加入「已開始的私訊對話」欄位。')));
   }
   const unk=win.filter(v=>/尚未確認|未填/.test(v.src)).length;
   if(win.length && unk) notes.push(insight('info','i',`同期間有 ${unk} 人次（${pctL(unk/win.length)}）來源未確認`,'其中若有廣告客，實際 Meta 預約率會更高；目前數字是下限。'));
-  if(ads.length && cur==='' && branches.length>1) notes.push(insight('info','i','分母目前是全部分店的廣告','預約檔只有單一診所時，建議在「廣告分店」選對應的分店，分子分母才一致。'));
+  if(cur && curO && !curO.ad) notes.push(insight('warn','!',`「${esc(curO.label)}」在廣告檔裡找不到對應的分店`,'請確認廣告組合名稱的分店寫法（例：轉換-訊息｜敦化｜…），或這段期間沒有投這間門店。'));
+  if(cur && curO && !curO.bk) notes.push(insight('warn','!',`預約資料裡沒有「${esc(curO.label)}」的預約`,'請上傳這間門店的預約資料，或切回有預約的門店。'));
+  if(!cur && list.length>1) notes.push(insight('info','i','目前是全部門店合計','廣告與預約都已包含所有門店；要看單一門店請在上方選擇。'));
   $('#c-notes').innerHTML=notes.join('');
   // 每日
   const hasDay=ads.some(a=>a.day);
