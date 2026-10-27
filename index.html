@@ -163,7 +163,6 @@ a{color:var(--accent)}
     <h2>上傳檔案開始分析</h2>
     <p>把檔案拖進這個頁面，或按下面的按鈕選擇檔案（.csv / .xlsx 皆可，可一次選多個）</p>
     <p>① Meta 廣告匯出檔 → 廣告成效　② 診所預約資料 → 預約與到店　兩份都有 → 另外算出 <b>Meta 預約率</b></p>
-    <p>投手填寫表 pitcher_input.xlsx 為選填</p>
     <button class="btn primary" id="btn-landing">選擇檔案</button>
     <p style="font-size:12px;margin-top:12px">🔒 檔案只在你的瀏覽器內讀取，不會上傳到任何伺服器；關掉或重新整理頁面就會清除</p>
     <ol>
@@ -279,7 +278,7 @@ a{color:var(--accent)}
 
     <div class="card full">
       <h2>資料品質檢查</h2>
-      <div class="desc">影響分析準確度的地方，建議在 Meta 後台或填寫表修正</div>
+      <div class="desc">影響分析準確度的地方，建議在 Meta 後台修正</div>
       <div class="ins" id="dq"></div>
     </div>
   </section>
@@ -295,9 +294,8 @@ a{color:var(--accent)}
 /* ================== 設定 ================== */
 const CONFIG = {
   metaFiles: ['data/meta_ads.xlsx', 'data/meta_ads.csv'],
-  pitcherFile: 'data/pitcher_input.xlsx',
   minSpendForAlert: 300,          // 花費超過此金額才列入警示
-  defaultRules: [                 // 填寫表沒有「療程對照」時使用
+  defaultRules: [                 // 廣告名稱關鍵字 → 療程（新療程加一列即可）
     ['bella','水光 Bella Pro'],['水光','水光 Bella Pro'],['電音波','電音波'],['無雙','無雙電波'],
     ['鼻/埋線','鼻部埋線'],['埋線','臉部埋線'],['唇','精雕唇'],['微針','微針筆'],['內內','內內'],['test','測試']
   ],
@@ -406,41 +404,13 @@ function parseMeta(wb){
     };
   });
 }
-function sheetRows(wb, name, headerRow=3){
-  const ws=wb.Sheets[name]; if(!ws) return [];
-  return XLSX.utils.sheet_to_json(ws,{defval:'',raw:true,range:headerRow-1})
-    .filter(r=>Object.values(r).some(v=>v!==''&&v!=null));
-}
-function parsePitcher(wb){
-  const rules=sheetRows(wb,'療程對照').map(r=>[String(pick(r,'關鍵字')||'').trim(), String(pick(r,'療程')||'').trim()]).filter(r=>r[0]&&r[1]);
-  const supp={};
-  sheetRows(wb,'廣告補充').forEach(r=>{
-    const o={
-      id:String(pick(r,'廣告編號')||'').trim(), treat:String(pick(r,'療程')||'').trim(),
-      creative:String(pick(r,'素材類型')||''), stage:String(pick(r,'目前階段')||''), owner:String(pick(r,'投手')||''),
-      launch:ymd(pick(r,'上線日')), link:String(pick(r,'素材連結')||''), note:String(pick(r,'卡關')||''),
-    };
-    const k=String(pick(r,'廣告組合名稱')||'').trim()+'§'+String(pick(r,'廣告名稱')||'').trim();
-    if(o.id) supp['id§'+o.id]=o;
-    supp[k]=o;
-  });
-  const weekly=sheetRows(wb,'每週成效回報').map(r=>({
-    week:ymd(pick(r,'週起日')), branch:String(pick(r,'分店')||'').trim(), treat:String(pick(r,'療程')||'').trim(),
-    leads:num(pick(r,'有效名單')), booked:num(pick(r,'預約')), visits:num(pick(r,'到診')),
-    deals:num(pick(r,'成交數')), revenue:num(pick(r,'成交金額')),
-  })).filter(r=>r.week||r.treat);
-  return {rules:rules.length?rules:null, supp, weekly};
-}
-
 /* ================== 狀態 ================== */
-let ADS=[], PITCHER={rules:null,supp:{},weekly:[]}, SOURCE='', SORT={key:'spend',dir:-1};
+let ADS=[], SOURCE='', SORT={key:'spend',dir:-1};
 
 function enrich(){
-  const rules=PITCHER.rules||CONFIG.defaultRules;
+  const rules=CONFIG.defaultRules;
   ADS.forEach(a=>{
-    const s=(a.id&&PITCHER.supp['id§'+a.id])||PITCHER.supp[a.adset+'§'+a.name]||null;
-    a.s=s||{};
-    a.treat=classify(a.name, rules, s&&s.treat);
+    a.treat=classify(a.name, rules);
     a.audS=a.ok?audShort(a.audience):a.audience;
     a.cpm=a.impr?a.spend/a.impr*1000:null;
     a.freq=a.reach?a.impr/a.reach:null;
@@ -561,16 +531,13 @@ const COLS=[
   ['rk','品質/互動/轉換',a=>[a.rkQ,a.rkE,a.rkC].map(r=>`<span class="rk ${r.cls}" title="${esc(r.full||'')}">${r.txt}</span>`).join(' ')],
   ['budget','組合預算',a=>a.budget?money(a.budget)+'/'+(a.budgetType||''):'–',1],
   ['endTime','結束',a=>esc(a.endTime)],
-  ['stage','階段(投手)',a=>esc(a.s.stage||'')],
-  ['owner','投手',a=>esc(a.s.owner||'')],
-  ['note','卡關／下一步',a=>(a.s.link?`<a href="${esc(a.s.link)}" target="_blank" rel="noopener">素材</a> `:'')+esc(a.s.note||''),0,'wr'],
   ['adset','廣告組合',a=>esc(a.adset)],
 ];
 function renderDetail(list){
   const total=sum(list,a=>a.spend); list.forEach(a=>a._share=total?a.spend/total:0);
   const q=$('#q').value.trim().toLowerCase();
-  let rows=q?list.filter(a=>[a.name,a.adset,a.treat,a.s.note,a.s.owner].join(' ').toLowerCase().includes(q)):list.slice();
-  const k=SORT.key, val=a=>k==='share'?a._share:k==='rk'?(a.rkQ.level+a.rkE.level+a.rkC.level):k in a?a[k]:(a.s[k]||'');
+  let rows=q?list.filter(a=>[a.name,a.adset,a.treat].join(' ').toLowerCase().includes(q)):list.slice();
+  const k=SORT.key, val=a=>k==='share'?a._share:k==='rk'?(a.rkQ.level+a.rkE.level+a.rkC.level):a[k];
   rows.sort((a,b)=>{ const x=val(a),y=val(b); return (typeof x==='number'&&typeof y==='number'?x-y:String(x??'').localeCompare(String(y??''),'zh-Hant'))*SORT.dir; });
   $('#row-count').textContent=`${rows.length} 筆`;
   $('#detail').innerHTML=`<table><thead><tr>${COLS.map(c=>`<th class="${c[3]?'num':''}" data-k="${c[0]}">${c[1]}${SORT.key===c[0]?(SORT.dir>0?' ↑':' ↓'):''}</th>`).join('')}</tr></thead>
@@ -624,15 +591,13 @@ function renderDQ(){
   if(bad.length) out.push(insight('warn','!',`${bad.length} 支廣告的廣告組合名稱不符「目標-形式｜分店｜受眾」`, [...new Set(bad.map(a=>a.adset))].map(esc).join('、')+`，共花費 ${money(sum(bad,a=>a.spend))}。這些無法歸到分店與受眾，建議改名。`));
   const keys={}; ADS.forEach(a=>{ const k=a.id||a.adset+'§'+a.name; keys[k]=(keys[k]||0)+1; });
   const dup=Object.entries(keys).filter(([k,n])=>n>1);
-  if(dup.length && !ADS.some(a=>a.id)) out.push(insight('warn','≡',`${dup.length} 組「廣告組合＋廣告名稱」重複`, '同名廣告無法和投手填寫表一對一對應。建議在 Meta 匯出時加入「廣告編號」欄位（欄位 → 自訂欄位 → 搜尋「廣告編號」），儀表板會自動改用編號對應。'));
+  if(dup.length && !ADS.some(a=>a.id)) out.push(insight('warn','≡',`${dup.length} 組「廣告組合＋廣告名稱」重複`, '同名廣告不易分辨。建議在 Meta 匯出時加入「廣告編號」欄位（欄位 → 自訂欄位 → 搜尋「廣告編號」）。'));
   const unk=ADS.filter(a=>a.treat==='未分類');
-  if(unk.length) out.push(insight('warn','?',`${unk.length} 支廣告無法判斷療程`, unk.map(a=>esc(a.name)).join('、')+'。請到填寫表「療程對照」新增關鍵字，或在「廣告補充」直接指定療程。'));
+  if(unk.length) out.push(insight('warn','?',`${unk.length} 支廣告無法判斷療程`, unk.map(a=>esc(a.name)).join('、')+'。請在 index.html 的 CONFIG.defaultRules 新增「關鍵字 → 療程」。'));
   const types=[...new Set(ADS.filter(a=>a.resultType).map(a=>a.resultType))];
   if(types.length>1) out.push(insight('info','i',`成果類型有 ${types.length} 種：${types.map(esc).join('、')}`, '不同類型的「成果」不能直接相加，所以本儀表板的成本比較只用「私訊對話」。導流、曝光型廣告請看 CPM 與到達頁瀏覽數。'));
   if(!ADS.some(a=>a.clicks)) out.push(insight('info','+','建議匯出時加入「連結點擊次數」「CTR」欄位', '可以多看一層：素材有沒有吸引點擊（CTR）vs 點進來後有沒有開口（轉換）。'));
   if(!ADS.some(a=>a.day)) out.push(insight('info','+','建議匯出時選「細分 → 依時間 → 天」', '目前是 30 天加總，看不出趨勢。改成依天細分後，儀表板會自動出現每日花費趨勢圖。'));
-  const supp=ADS.filter(a=>a.s&&Object.keys(a.s).length).length;
-  out.push(insight(supp?'good':'info', supp?'✓':'i', `投手填寫表對應到 ${supp}／${ADS.length} 支廣告`, supp?'未對應到的廣告，請確認填寫表中的廣告組合名稱與廣告名稱是否與後台完全一致。':'尚未放入 data/pitcher_input.xlsx，或名稱對不上。'));
   $('#dq').innerHTML=out.join('');
 }
 
@@ -839,7 +804,7 @@ function afterLoad(){
   if(hasA){
     enrich(); buildFilters(); renderDQ(); render();
     const s=ADS.map(a=>a.start).filter(Boolean).sort()[0], e=ADS.map(a=>a.end).filter(Boolean).sort().pop();
-    info.push(`廣告 ${s||'?'} ～ ${e||'?'}｜${ADS.length} 支｜${SOURCE}${Object.keys(PITCHER.supp).length||PITCHER.weekly.length?'＋投手填寫表':''}`);
+    info.push(`廣告 ${s||'?'} ～ ${e||'?'}｜${ADS.length} 支｜${SOURCE}`);
   }
   if(hasB){ renderBook(); info.push(`預約 ${span(BOOK)}｜${BOOK.length} 人次`); }
   if(hasA&&hasB) renderCombo();
@@ -852,8 +817,6 @@ async function loadRemote(){
     const buf=await fetchBuf(p); if(!buf) continue;
     try{ ADS=parseMeta(await readWorkbook(buf,p)); SOURCE=p; found=true; break; }catch(e){ console.error(e); }
   }
-  const pb=await fetchBuf(CONFIG.pitcherFile);
-  if(pb){ try{ PITCHER=parsePitcher(await readWorkbook(pb,CONFIG.pitcherFile)); }catch(e){ console.error(e); } }
   if(!found){
     $('#meta-info').textContent='尚未載入資料';
     showStatus('');
@@ -865,11 +828,9 @@ async function loadLocal(files){
   try{
   for(const f of files){
     const buf=await f.arrayBuffer(); const wb=await readWorkbook(buf,f.name);
-    if(wb.Sheets['療程對照']||wb.Sheets['廣告補充']) PITCHER=parsePitcher(wb);
-    else if(isBooking(wb)){ BOOK=parseBooking(wb); BOOK_SRC=f.name; BSCOPE='settled'; COMBO_INIT=false; }
+    if(isBooking(wb)){ BOOK=parseBooking(wb); BOOK_SRC=f.name; BSCOPE='settled'; COMBO_INIT=false; }
     else { const a=parseMeta(wb); if(!a.length) throw new Error('unknown file: '+f.name); ADS=a; SOURCE='本機檔案 '+f.name; COMBO_INIT=false; }
   }
-  if(!ADS.length && !BOOK.length){ showStatus('已讀取投手填寫表，請再加入 Meta 匯出檔或預約資料。'); return; }
   showStatus(''); afterLoad();
   }catch(e){ console.error(e); showStatus('檔案讀取失敗：請確認是 Meta 廣告管理員匯出的 CSV／Excel，或含「預約時間」「報到狀態」欄位的預約資料。'); }
 }
@@ -890,8 +851,8 @@ $('#btn-theme').addEventListener('click',()=>{
 });
 try{ const t=localStorage.getItem('theme'); if(t) document.documentElement.dataset.theme=t; }catch(e){}
 $('#btn-csv').addEventListener('click',()=>{
-  const rows=window._rows||[]; const head=['狀態','廣告名稱','療程','分店','目標','受眾','花費','成果','成果類型','每次成果成本','曝光','觸及','頻率','CPM','品質排名','互動排名','轉換排名','階段','投手','卡關/下一步','廣告組合'];
-  const data=rows.map(a=>[a.status,a.name,a.treat,a.branch,a.goal+(a.format?'-'+a.format:''),a.audS,a.spend,a.results,a.resultType,a.cpr?Math.round(a.cpr):'',a.impr,a.reach,a.freq?a.freq.toFixed(2):'',a.cpm?Math.round(a.cpm):'',a.rkQ.full||'',a.rkE.full||'',a.rkC.full||'',a.s.stage||'',a.s.owner||'',a.s.note||'',a.adset]);
+  const rows=window._rows||[]; const head=['狀態','廣告名稱','療程','分店','目標','受眾','花費','成果','成果類型','每次成果成本','曝光','觸及','頻率','CPM','品質排名','互動排名','轉換排名','廣告組合'];
+  const data=rows.map(a=>[a.status,a.name,a.treat,a.branch,a.goal+(a.format?'-'+a.format:''),a.audS,a.spend,a.results,a.resultType,a.cpr?Math.round(a.cpr):'',a.impr,a.reach,a.freq?a.freq.toFixed(2):'',a.cpm?Math.round(a.cpm):'',a.rkQ.full||'',a.rkE.full||'',a.rkC.full||'',a.adset]);
   const csv='﻿'+[head,...data].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='廣告明細_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
 });
