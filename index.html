@@ -199,6 +199,12 @@ a{color:var(--accent)}
         <div class="legend"><span><i style="background:var(--bar)"></i>到店</span><span><i style="background:var(--bad)"></i>未到（已結算）</span><span><i style="background:var(--warn)"></i>未報到（待確認／今日）</span><span><i style="background:var(--muted)"></i>未來預約</span></div>
         <div id="b-chart"></div>
       </div>
+      <div class="card full" id="b-ad-card">
+        <h2>每日廣告預約率</h2>
+        <div class="desc">當天預約中來自 Facebook／Instagram／Threads 的比例（Meta 預約 ÷ 當天全部預約）；柱上數字為比率，滑過可看人次。只需要預約資料就能算</div>
+        <div class="legend"><span><i style="background:var(--bar-2)"></i>已發生</span><span><i style="background:var(--muted)"></i>未來預約</span></div>
+        <div id="b-ad-chart"></div>
+      </div>
       <div class="card">
         <h2>依客戶來源</h2>
         <div class="desc">預約占比＝該來源預約人次 ÷ 範圍內全部預約人次</div>
@@ -206,7 +212,7 @@ a{color:var(--accent)}
       </div>
       <div class="card">
         <h2>每日明細</h2>
-        <div class="desc">Meta 占比＝當天 Facebook／Instagram／Threads 預約 ÷ 當天全部預約</div>
+        <div class="desc">廣告預約率＝當天 Facebook／Instagram／Threads 預約 ÷ 當天全部預約</div>
         <div class="tbl-wrap" id="b-days" style="max-height:420px"></div>
       </div>
       <div class="card full defs">
@@ -716,7 +722,10 @@ function renderBook(){
     stacks:[{val:d=>d.a,color:()=>'var(--bar)'},{val:d=>d.n-d.a,color:d=>zoneColor(d.zone)}],
     label:d=>d.zone==='已結算'?pctL(d.a/d.n):null,
     tip:d=>`<b>${d.date}</b>｜${d.zone}<br>預約 ${d.n}｜到店 ${d.a}｜未到 ${d.n-d.a}<br>到店率 ${pctL(d.a/d.n)}｜Meta 預約 ${d.m}`});
-  $('#b-days').innerHTML=tableHtml([['日期'],['狀態'],['預約',1],['到店',1],['未到',1],['到店率',1],['Meta 預約',1],['Meta 占比',1]],
+  barChart($('#b-ad-chart'),days,{aria:'每日廣告預約率',x:d=>d.date.slice(5).replace('-','/'),tick:v=>pctL(v),min:0.6,
+    stacks:[{val:d=>d.m/d.n,color:d=>d.zone==='未來預約'?'var(--muted)':'var(--bar-2)'}],label:d=>pctL(d.m/d.n),
+    tip:d=>`<b>${d.date}</b>｜${d.zone}<br>Meta 預約 ${d.m} ／ 全部預約 ${d.n}<br>廣告預約率 ${pctL(d.m/d.n)}`});
+  $('#b-days').innerHTML=tableHtml([['日期'],['狀態'],['預約',1],['到店',1],['未到',1],['到店率',1],['Meta 預約',1],['廣告預約率',1]],
     days.map(d=>`<tr><td>${d.date}</td><td class="${d.zone==='已結算'?'':'dim'}">${d.zone}</td><td class="num">${d.n}</td><td class="num">${d.a}</td><td class="num ${d.zone==='已結算'&&d.n>d.a?'bad':''}">${d.n-d.a}</td><td class="num ${d.zone==='已結算'?'':'dim'}">${pctL(d.a/d.n)}</td><td class="num">${d.m}</td><td class="num">${pctL(d.m/d.n)}</td></tr>`));
   // 來源
   const sm=new Map(); list.forEach(v=>{ const x=sm.get(v.src)||{k:v.src,n:0,a:0}; x.n++; if(v.arrived) x.a++; sm.set(v.src,x); });
