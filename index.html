@@ -210,6 +210,15 @@ a{color:var(--accent)}
     <div class="kpis" id="b-kpis"></div>
     <div class="ins" id="b-notes" style="margin-bottom:14px"></div>
     <div class="grid">
+      <div class="card full" id="b-line-card">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:baseline">
+          <h2>每日預約 vs 實際到店</h2>
+          <span class="sub" id="b-line-sum"></span>
+        </div>
+        <div class="desc">只列有預約的日子；兩線之間的落差＝當天未到人數。尚未結算的日子只畫預約線（灰底）</div>
+        <div class="legend"><span><i style="background:var(--muted);height:3px;vertical-align:3px"></i>預約人次</span><span><i style="background:var(--bar);height:3px;vertical-align:3px"></i>實際到店</span></div>
+        <div id="b-line"></div>
+      </div>
       <div class="card full">
         <h2>每日預約與到店</h2>
         <div class="desc">柱子＝當天預約人次，柱上數字為到店率</div>
@@ -712,6 +721,33 @@ const pctL=v=>v==null?'–':(Math.round(v*1000)/10)+'%';
 function kpiHtml(k){ return k.map(([l,v,n,hl])=>`<div class="kpi${hl?' hl':''}"><div class="l">${l}</div><div class="v">${v}</div><div class="n">${n}</div></div>`).join(''); }
 function tableHtml(head,rows){ return `<table><thead><tr>${head.map(([t,num])=>`<th class="${num?'num':''}">${t}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`; }
 
+
+/* 每日預約 vs 到店 折線圖 */
+function lineChart(el,rows){
+  if(!rows.length){ el.innerHTML='<div class="empty">無資料</div>'; return; }
+  const W=Math.max(320,el.clientWidth||900), H=300, P={l:36,r:16,t:22,b:28}, n=rows.length;
+  const step=n>1?(W-P.l-P.r)/(n-1):0, X=i=>n>1?P.l+i*step:W/2;
+  const max=Math.max(5,...rows.map(d=>d.n)), top=Math.ceil(max*1.15/5)*5, Y=v=>P.t+(H-P.t-P.b)*(1-v/top);
+  const showLab=step>=26;
+  let s=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="每日預約與實際到店">`;
+  const i0=rows.findIndex(d=>d.zone!=='已結算');
+  if(i0>=0){ const x0=i0>0?X(i0)-step/2:P.l; s+=`<rect x="${x0}" y="${P.t}" width="${W-P.r-x0}" height="${H-P.t-P.b}" fill="var(--surface-2)"/><text x="${x0+6}" y="${P.t+12}" style="font-size:11px;fill:var(--muted)">尚未結算</text>`; }
+  for(let v=0;v<=top;v+=top/5){ s+=`<line x1="${P.l}" x2="${W-P.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)"/><text x="${P.l-6}" y="${Y(v)+4}" text-anchor="end">${Math.round(v)}</text>`; }
+  const every=Math.ceil(n/Math.max(1,Math.floor((W-P.l)/46)));
+  rows.forEach((d,i)=>{ if(i%every===0||i===n-1) s+=`<text x="${X(i)}" y="${H-8}" text-anchor="middle">${d.date.slice(5).replace('-','/')}</text>`; });
+  const draw=(pts,key,color,dy)=>{
+    if(!pts.length) return;
+    s+=`<polyline points="${pts.map(([d,i])=>X(i)+','+Y(d[key])).join(' ')}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    pts.forEach(([d,i])=>{ s+=`<circle cx="${X(i)}" cy="${Y(d[key])}" r="3.5" fill="${color}"/>`; if(showLab) s+=`<text x="${X(i)}" y="${Y(d[key])+dy}" text-anchor="middle" style="fill:${color};font-weight:600">${d[key]}</text>`; });
+  };
+  const all=rows.map((d,i)=>[d,i]);
+  draw(all,'n','var(--muted)',-9);
+  draw(all.filter(([d])=>d.zone==='已結算'),'a','var(--bar)',17);
+  rows.forEach((d,i)=>{ const w=n>1?step:W; s+=`<rect class="hit" data-i="${i}" x="${X(i)-w/2}" width="${w}" y="${P.t}" height="${H-P.t-P.b}" fill="transparent"/>`; });
+  el.innerHTML=s+'</svg>';
+  el.querySelectorAll('.hit').forEach(h=>tipOn(h,()=>{ const d=rows[+h.dataset.i]; return `<b>${d.date}</b>｜${d.zone}<br>預約 ${d.n}`+(d.zone==='已結算'?`｜到店 ${d.a}｜未到 ${d.n-d.a}<br>到店率 ${pctL(d.a/d.n)}`:'<br>到店狀態尚未結算'); }));
+}
+
 function renderBook(){
   const settled=BOOK.filter(BSCOPES.settled), upto=BOOK.filter(BSCOPES.today);
   const labels={settled:`已結算 ${span(settled)}`, today:`截至今日 ${span(upto)}`, all:`全部（含未來預約）${span(BOOK)}`};
@@ -735,6 +771,9 @@ function renderBook(){
   // 每日
   const dm=new Map(); BOOK.forEach(v=>{ const d=dm.get(v.date)||{date:v.date,zone:v.zone,n:0,a:0,m:0}; d.n++; if(v.arrived) d.a++; if(v.meta) d.m++; dm.set(v.date,d); });
   const days=[...dm.values()].sort((a,b)=>a.date<b.date?-1:1);
+  const set=days.filter(d=>d.zone==='已結算'), sn=sum(set,d=>d.n), sa=sum(set,d=>d.a);
+  $('#b-line-sum').innerHTML=`已結算 預約 <b>${fmt(sn)}</b>・到店 <b>${fmt(sa)}</b>・到店率 <b>${pctL(sn?sa/sn:null)}</b>`;
+  lineChart($('#b-line'),days);
   barChart($('#b-chart'),days,{aria:'每日預約與到店',x:d=>d.date.slice(5).replace('-','/'),
     stacks:[{val:d=>d.a,color:()=>'var(--bar)'},{val:d=>d.n-d.a,color:d=>zoneColor(d.zone)}],
     label:d=>d.zone==='已結算'?pctL(d.a/d.n):null,
