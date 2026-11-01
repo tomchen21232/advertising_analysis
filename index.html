@@ -753,7 +753,7 @@ function renderCombo(){
     ['Meta 預約人次',fmt(meta.length),'來源 Facebook／Instagram／Threads'],
     ['Meta 預約率',D?pctL(meta.length/D):'–',`Meta 預約 ÷ ${denName}`,true],
     ['Meta 到店率',pctL(metaSet.length?metaA/metaSet.length:null),`已結算：到店 ${metaA} ÷ 預約 ${metaSet.length}`,true],
-    ['每筆 Meta 預約成本',money(meta.length?spend/meta.length:null),`每位到店 ${money(metaA?spend/metaA:null)}（未來預約尚未到店，期間未結束前偏高）`],
+    ['每筆 Meta 預約成本',money(meta.length?spend/meta.length:null),`廣告花費 ÷ Meta 預約｜每位到店 ${money(metaA?spend/metaA:null)}${meta.length>metaSet.length?`（${meta.length-metaSet.length} 位尚未結算，到店成本暫時偏高）`:''}`],
   ]);
   const notes=[];
   if(!win.length && bookS.length) notes.push(insight('bad','!','廣告期間和預約資料的日期沒有重疊',`廣告 ${s||'?'}～${e||'?'}；預約 ${span(bookS)}。請確認兩份檔案是同一段期間。`));
