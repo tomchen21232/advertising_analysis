@@ -128,6 +128,23 @@ body:not(.has-ads) .both-only,body:not(.has-book) .both-only{display:none!import
 .seg{display:inline-flex;gap:4px;flex-wrap:wrap}
 .seg button{font:inherit;font-size:12px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:4px 12px;cursor:pointer}
 .seg button.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.flow{display:flex;align-items:stretch;gap:0;margin-bottom:14px}
+.flow .st{flex:1 1 0;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column}
+.flow .st .l{font-size:12px;color:var(--text-2)}
+.flow .st .v{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px;line-height:1.25}
+.flow .st .u{font-size:13px;font-weight:500;color:var(--text-2);margin-left:2px}
+.flow .st .c{margin-top:auto;padding-top:8px;border-top:1px dashed var(--border);font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.flow .st .c b{color:var(--text);font-size:15px;font-weight:700}
+.flow .st .n{font-size:11px;color:var(--muted);margin:4px 0 6px}
+.flow .ar{flex:0 0 92px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 4px}
+.flow .ar .r{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
+.flow .ar .t{font-size:11px;color:var(--text-2);line-height:1.3}
+.flow .ar .a{font-size:18px;color:var(--muted);line-height:1}
+@media (max-width:760px){
+  .flow{flex-direction:column}
+  .flow .ar{flex:none;flex-direction:row;gap:8px;padding:6px 0}
+  .flow .ar .a{transform:rotate(90deg)}
+}
 .kpi.hl{border-color:var(--accent)}
 .kpi.hl .v{color:var(--text)}
 td.bad{color:var(--bad)} td.dim{color:var(--muted)}
@@ -176,7 +193,7 @@ a{color:var(--accent)}
   <!-- ===== 廣告 × 預約（兩份檔案都有才顯示） ===== -->
   <section class="both-only" id="combo">
     <div class="sec-h"><h2>廣告 → 預約 → 到店</h2><span class="sub" id="c-info"></span></div>
-    <div class="kpis" id="c-kpis"></div>
+    <div class="flow" id="c-kpis"></div>
     <div class="ins" id="c-notes" style="margin-bottom:14px"></div>
     <div class="card full" id="c-daily-card" style="margin-bottom:14px">
       <h2>每日 Meta 預約率</h2>
@@ -747,14 +764,17 @@ function renderCombo(){
   const meta=win.filter(v=>v.meta), metaSet=meta.filter(v=>v.zone==='已結算'), metaA=metaSet.filter(v=>v.arrived).length;
   const spend=sum(ads,a=>a.spend), D=sum(ads,denOf);
   $('#c-info').textContent=`比對期間 ${s||'?'} ～ ${e||'?'}｜廣告 ${ads.length} 支｜預約 ${win.length} 人次`;
-  $('#c-kpis').innerHTML=kpiHtml([
-    ['廣告花費',money(spend),`${ads.length} 支廣告`],
-    ['私訊對話數',fmt(D),'點擊或看過廣告的人數（Meta 後台）'],
-    ['Meta 預約人次',fmt(meta.length),'來源 Facebook／Instagram／Threads'],
-    ['Meta 預約率',D?pctL(meta.length/D):'–',`Meta 預約 ÷ ${denName}`,true],
-    ['Meta 到店率',pctL(metaSet.length?metaA/metaSet.length:null),`已結算：到店 ${metaA} ÷ 預約 ${metaSet.length}`,true],
-    ['每筆 Meta 預約成本',money(meta.length?spend/meta.length:null),`廣告花費 ÷ Meta 預約｜每位到店 ${money(metaA?spend/metaA:null)}${meta.length>metaSet.length?`（${meta.length-metaSet.length} 位尚未結算，到店成本暫時偏高）`:''}`],
-  ]);
+  const pend=meta.length-metaSet.length;
+  const step=(l,v,u,n,cost)=>`<div class="st"><div class="l">${l}</div><div class="v">${v}<span class="u">${u}</span></div><div class="n">${n}</div><div class="c">${cost}</div></div>`;
+  const arrow=(r,t)=>`<div class="ar"${r?'':' style="flex-basis:40px"'}><div class="a">→</div><div class="r">${r}</div><div class="t">${t}</div></div>`;
+  $('#c-kpis').innerHTML=
+    step('廣告花費',money(spend),'',`${ads.length} 支廣告`,'&nbsp;')+
+    arrow('','')+
+    step('私訊對話',fmt(D),'則','點擊或看過廣告的人（Meta 後台）',`每則私訊 <b>${money(D?spend/D:null)}</b>`)+
+    arrow(D?pctL(meta.length/D):'–','Meta 預約率')+
+    step('Meta 預約',fmt(meta.length),'人次','來源 FB／IG／Threads',`每筆預約 <b>${money(meta.length?spend/meta.length:null)}</b>`)+
+    arrow(pctL(metaSet.length?metaA/metaSet.length:null),'Meta 到店率')+
+    step('實際到店',fmt(metaA),'人次',`Meta 預約中已報到${metaSet.length-metaA>0?`｜未到 ${metaSet.length-metaA}`:''}${pend>0?`｜${pend} 位尚未結算`:''}`,`每位到店 <b>${money(metaA?spend/metaA:null)}</b>`);
   const notes=[];
   if(!win.length && bookS.length) notes.push(insight('bad','!','廣告期間和預約資料的日期沒有重疊',`廣告 ${s||'?'}～${e||'?'}；預約 ${span(bookS)}。請確認兩份檔案是同一段期間。`));
   if(!D){
